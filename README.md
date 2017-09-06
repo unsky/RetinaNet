@@ -23,13 +23,6 @@ python train.py --cfg kitti.yaml
 python test.py --cfg kitti.yaml 
 ```
 
-# todo
-
-1. test net
-
-2. focal loss with ingore_label
-
-3. show the experiment results
 
 
 
