@@ -6,6 +6,7 @@ The code is unofficial version for RetinaNet in focal loss for Dense Object Dete
 You can use the focal loss  in https://github.com/unsky/focal-loss
 
 # usage
+install mxnet v0.9.5
 
 1. download the dataset in data/
 
