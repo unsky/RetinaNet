@@ -824,12 +824,11 @@ class retina_resnet_101(Symbol):
         if is_train:
             data = mx.sym.Variable(name="data")
            # gt_boxes = mx.sym.Variable(name="gt_boxes")
+   
             
             rpn_label_p3 = mx.sym.Variable(name='label/p3')
             rpn_label_p4 = mx.sym.Variable(name='label/p4')
             rpn_label_p5 = mx.sym.Variable(name='label/p5')
-
-
 
             rpn_bbox_target_p3 = mx.sym.Variable(name='bbox_target/p3')           
             rpn_bbox_target_p4 = mx.sym.Variable(name='bbox_target/p4')
@@ -877,26 +876,19 @@ class retina_resnet_101(Symbol):
 
 
         if is_train:
-
             rpn_cls_score_reshape_p3 = mx.sym.Reshape(
-                 data=rpn_cls_score_p3, shape=(0, num_classes, -1, 0), name="rpn_cls_score_reshape/p3")    
+                 data=rpn_cls_score_p3, shape=(0, 1, -1, num_classes), name="rpn_cls_score_reshape/p3")    
             
             rpn_cls_score_reshape_p4 = mx.sym.Reshape(
-                 data=rpn_cls_score_p4, shape=(0, num_classes, -1, 0), name="rpn_cls_score_reshape/p4")
+                 data=rpn_cls_score_p4, shape=(0, 1, -1, num_classes), name="rpn_cls_score_reshape/p4")
     
             rpn_cls_score_reshape_p5 = mx.sym.Reshape(
-                 data=rpn_cls_score_p5, shape=(0, num_classes, -1, 0), name="rpn_cls_score_reshape/p5")
+                 data=rpn_cls_score_p5, shape=(0, 1, -1, num_classes), name="rpn_cls_score_reshape/p5")
     
-
-            rpn_cls_prob_p3 = mx.sym.SoftmaxOutput(data=rpn_cls_score_reshape_p3, label=rpn_label_p3, multi_output=True,
-                                                 normalization='valid', use_ignore=True, ignore_label=-1,
-                                                 name="rpn_cls_prob/p3")  
-            rpn_cls_prob_p4 = mx.sym.SoftmaxOutput(data=rpn_cls_score_reshape_p4, label=rpn_label_p4, multi_output=True,
-                                                 normalization='valid', use_ignore=True, ignore_label=-1,
-                                                 name="rpn_cls_prob/p4")            
-            rpn_cls_prob_p5 = mx.sym.SoftmaxOutput(data=rpn_cls_score_reshape_p5, label=rpn_label_p5, multi_output=True,
-                                                 normalization='valid', use_ignore=True, ignore_label=-1,
-                                                 name="rpn_cls_prob/p5")
+            rpn_cls_prob_p3 = mx.sym.Custom(op_type='FocalLoss', name = 'cls_prob/p3', data=rpn_cls_score_reshape_p3, labels=rpn_label_p3, alpha =0.25, gamma= 2)
+            rpn_cls_prob_p4 = mx.sym.Custom(op_type='FocalLoss', name = 'cls_prob/p4', data=rpn_cls_score_reshape_p4, labels=rpn_label_p4, alpha =0.25, gamma= 2)
+            rpn_cls_prob_p5 = mx.sym.Custom(op_type='FocalLoss', name = 'cls_prob/p5', data=rpn_cls_score_reshape_p5, labels=rpn_label_p5, alpha =0.25, gamma= 2)
+            
 
 
             p3_rpn_bbox_loss_ = rpn_bbox_weight_p3 * mx.sym.smooth_l1(name='rpn_bbox_loss_/p3', scalar=3.0,
@@ -915,83 +907,43 @@ class retina_resnet_101(Symbol):
             rpn_bbox_loss_p5 = mx.sym.MakeLoss(name='rpn_bbox_loss/p5', data=p5_rpn_bbox_loss_,
                                              grad_scale=1.0 / cfg.TRAIN.RPN_BATCH_SIZE)
 
-            # ROI proposal
-            rpn_cls_act_p3 = mx.sym.SoftmaxActivation(
-                data=rpn_cls_score_reshape_p3, mode="channel", name="rpn_cls_act/p3")
-            rpn_cls_act_reshape_p3 = mx.sym.Reshape(
-                data=rpn_cls_act_p3, shape=(0, 2 * num_anchors_p3, -1, 0), name='rpn_cls_act_reshape/p3')
-
-            rpn_cls_act_p4 = mx.sym.SoftmaxActivation(
-                data=rpn_cls_score_reshape_p4, mode="channel", name="rpn_cls_act/p4")
-            rpn_cls_act_reshape_p4 = mx.sym.Reshape(
-                data=rpn_cls_act_p4, shape=(0, 2 * num_anchors_p4, -1, 0), name='rpn_cls_act_reshape/p4')
-
-            rpn_cls_act_p5 = mx.sym.SoftmaxActivation(
-                 data=rpn_cls_score_reshape_p5, mode="channel", name="rpn_cls_act/p5")
-            rpn_cls_act_reshape_p5 = mx.sym.Reshape(
-                 data=rpn_cls_act_p5, shape=(0, 2 * num_anchors_p5, -1, 0), name='rpn_cls_act_reshape/p5')
-
-            # if cfg.TRAIN.CXX_PROPOSAL:  
-            #     rois_p3 = mx.contrib.sym.Proposal(
-            #         cls_prob=rpn_cls_act_reshape_p3, bbox_pred=rpn_bbox_pred_p3, im_info=im_info, name='rois/p3',
-            #         feature_stride=cfg.network.p3_RPN_FEAT_STRIDE, scales=tuple(cfg.network.p3_ANCHOR_SCALES),
-            #         ratios=tuple(cfg.network.p3_ANCHOR_RATIOS),
-            #         rpn_pre_nms_top_n=cfg.TRAIN.RPN_PRE_NMS_TOP_N, rpn_post_nms_top_n=cfg.TRAIN.RPN_POST_NMS_TOP_N,
-            #         threshold=cfg.TRAIN.RPN_NMS_THRESH, rpn_min_size=cfg.TRAIN.RPN_MIN_SIZE)
-
-            #     rois_p4 = mx.contrib.sym.Proposal(
-            #         cls_prob=rpn_cls_act_reshape_p4, bbox_pred=rpn_bbox_pred_p4, im_info=im_info, name='rois/p4',
-            #         feature_stride=cfg.network.p4_RPN_FEAT_STRIDE, scales=tuple(cfg.network.p4_ANCHOR_SCALES),
-            #         ratios=tuple(cfg.network.p4_ANCHOR_RATIOS),
-            #         rpn_pre_nms_top_n=cfg.TRAIN.RPN_PRE_NMS_TOP_N, rpn_post_nms_top_n=cfg.TRAIN.RPN_POST_NMS_TOP_N,
-            #         threshold=cfg.TRAIN.RPN_NMS_THRESH, rpn_min_size=cfg.TRAIN.RPN_MIN_SIZE)
-
-
-            #     rois_p5 = mx.contrib.sym.Proposal(
-            #          cls_prob=rpn_cls_act_reshape_p5, bbox_pred=rpn_bbox_pred_p5, im_info=im_info, name='rois/p5',
-            #          feature_stride=cfg.network.p5_RPN_FEAT_STRIDE, scales=tuple(cfg.network.p5_ANCHOR_SCALES),
-            #          ratios=tuple(cfg.network.p5_ANCHOR_RATIOS),
-            #          rpn_pre_nms_top_n=cfg.TRAIN.RPN_PRE_NMS_TOP_N, rpn_post_nms_top_n=cfg.TRAIN.RPN_POST_NMS_TOP_N,
-            #          threshold=cfg.TRAIN.RPN_NMS_THRESH, rpn_min_size=cfg.TRAIN.RPN_MIN_SIZE)
-
-
-            # else:
-            #     rois_p3,score_p3 = mx.sym.Custom(
-            #         cls_prob=rpn_cls_act_reshape_p3, bbox_pred=rpn_bbox_pred_p3, im_info=im_info, name='rois/p3',
-            #         op_type='proposal', feat_stride=cfg.network.p3_RPN_FEAT_STRIDE,
-            #         px_shape = newp3,
-            #         scales=tuple(cfg.network.p3_ANCHOR_SCALES), ratios=tuple(cfg.network.p3_ANCHOR_RATIOS),
-            #         rpn_pre_nms_top_n=cfg.TRAIN.RPN_PRE_NMS_TOP_N, rpn_post_nms_top_n=cfg.TRAIN.RPN_POST_NMS_TOP_N,
-            #         threshold=cfg.TRAIN.RPN_NMS_THRESH, rpn_min_size=cfg.TRAIN.RPN_MIN_SIZE)
-
-            #     rois_p4,score_p4 = mx.sym.Custom(
-            #         cls_prob=rpn_cls_act_reshape_p4, bbox_pred=rpn_bbox_pred_p4, im_info=im_info, name='rois/p4',
-            #         op_type='proposal', feat_stride=cfg.network.p4_RPN_FEAT_STRIDE,
-            #         px_shape = newp4,
-            #         scales=tuple(cfg.network.p4_ANCHOR_SCALES), ratios=tuple(cfg.network.p4_ANCHOR_RATIOS),
-            #         rpn_pre_nms_top_n=cfg.TRAIN.RPN_PRE_NMS_TOP_N, rpn_post_nms_top_n=cfg.TRAIN.RPN_POST_NMS_TOP_N,
-            #         threshold=cfg.TRAIN.RPN_NMS_THRESH, rpn_min_size=cfg.TRAIN.RPN_MIN_SIZE)
-            #     rois_p5,score_p5 = mx.sym.Custom(
-            #          cls_prob=rpn_cls_act_reshape_p5, bbox_pred=rpn_bbox_pred_p5, im_info=im_info, name='rois/p5',
-            #          op_type='proposal',feat_stride=cfg.network.p5_RPN_FEAT_STRIDE,
-            #          px_shape = p5,
-            #          scales=tuple(cfg.network.p5_ANCHOR_SCALES), ratios=tuple(cfg.network.p5_ANCHOR_RATIOS),
-            #          rpn_pre_nms_top_n=cfg.TRAIN.RPN_PRE_NMS_TOP_N, rpn_post_nms_top_n=cfg.TRAIN.RPN_POST_NMS_TOP_N,
-            #          threshold=cfg.TRAIN.RPN_NMS_THRESH, rpn_min_size=cfg.TRAIN.RPN_MIN_SIZE)
             group = mx.sym.Group([rpn_cls_prob_p3,rpn_bbox_loss_p3,rpn_cls_prob_p4, rpn_bbox_loss_p4, rpn_cls_prob_p5,rpn_bbox_loss_p5])
+        else:
+            # ROI Proposal
+            # p3
+            rpn_cls_score_reshape_p3 = mx.sym.Reshape(
+                data=rpn_cls_score_p3, shape=(0, num_classes, -1, 0), name="rpn_cls_score_reshape/p3")
+            rpn_cls_prob_p3 = mx.sym.SoftmaxActivation(
+                data=rpn_cls_score_reshape_p3, mode="channel", name="rpn_cls_prob/p3")
+            rpn_cls_prob_reshape_p3 = mx.sym.Reshape(
+                data=rpn_cls_prob_p3, shape=(0, num_classes * num_anchors_p3, -1, 0), name='rpn_cls_prob_reshape/p3')
+            # p4
+            rpn_cls_score_reshape_p4 = mx.sym.Reshape(
+                data=rpn_cls_score_p4, shape=(0, num_classes, -1, 0), name="rpn_cls_score_reshape/p4")
+            rpn_cls_prob_p4 = mx.sym.SoftmaxActivation(
+                data=rpn_cls_score_reshape_p4, mode="channel", name="rpn_cls_prob/p4")
+            rpn_cls_prob_reshape_p4 = mx.sym.Reshape(
+                data=rpn_cls_prob_p4, shape=(0, num_classes * num_anchors_p4, -1, 0), name='rpn_cls_prob_reshape/p4')
+
+            # p3
+            rpn_cls_score_reshape_p5 = mx.sym.Reshape(
+                data=rpn_cls_score_p5, shape=(0, num_classes, -1, 0), name="rpn_cls_score_reshape/p5")
+            rpn_cls_prob_p5 = mx.sym.SoftmaxActivation(
+                data=rpn_cls_score_reshape_p5, mode="channel", name="rpn_cls_prob/p5")
+            rpn_cls_prob_reshape_p5 = mx.sym.Reshape(
+                data=rpn_cls_prob_p5, shape=(0, num_classes * num_anchors_p5, -1, 0), name='rpn_cls_prob_reshape/p5')
+            rois = mx.sym.Concat(rpn_cls_prob_reshape_p3,rpn_cls_prob_reshape_p4,rpn_cls_prob_reshape_p5,dim =0,name='rois')
+            score = mx.sym.Concat(rpn_cls_prob_p3,rpn_cls_prob_p4,rpn_cls_prob_p5,dim =0,name='score')
+            group = mx.symbol.Group([rois, score])
+
+           
         self.sym =group
         return group
 
     def init_weight(self, cfg, arg_params, aux_params):
 
-        # arg_params['rpn_conv_3x3_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['rpn_conv_3x3_weight'])
-        # arg_params['rpn_conv_3x3_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['rpn_conv_3x3_bias'])
-        # arg_params['rpn_cls_score_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['rpn_cls_score_weight'])
-        # arg_params['rpn_cls_score_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['rpn_cls_score_bias'])
-        # arg_params['rpn_bbox_pred_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['rpn_bbox_pred_weight'])
-        # arg_params['rpn_bbox_pred_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['rpn_bbox_pred_bias'])
 
-###share
+
         arg_params['rpn_conv_3x3/p3_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['rpn_conv_3x3/p3_weight'])
         arg_params['rpn_conv_3x3/p3_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['rpn_conv_3x3/p3_bias'])
         arg_params['rpn_cls_score/p3_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['rpn_cls_score/p3_weight'])
@@ -1013,18 +965,6 @@ class retina_resnet_101(Symbol):
         arg_params['rpn_bbox_pred/p5_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['rpn_bbox_pred/p5_weight'])
         arg_params['rpn_bbox_pred/p5_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['rpn_bbox_pred/p5_bias'])
  
-        # arg_params['rpn_conv_3x3/p6_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['rpn_conv_3x3/p6_weight'])
-        # arg_params['rpn_conv_3x3/p6_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['rpn_conv_3x3/p6_bias'])
-        # arg_params['rpn_cls_score/p6_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['rpn_cls_score/p6_weight'])
-        # arg_params['rpn_cls_score/p6_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['rpn_cls_score/p6_bias'])
-        # arg_params['rpn_bbox_pred/p6_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['rpn_bbox_pred/p6_weight'])
-        # arg_params['rpn_bbox_pred/p6_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['rpn_bbox_pred/p6_bias'])
-
-
-
-
-
-
 
         arg_params['c3_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['c3_weight'])
         arg_params['c3_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['c3_bias'])
@@ -1046,34 +986,6 @@ class retina_resnet_101(Symbol):
  
         arg_params['res5c_branch2b_weight'] = mx.nd.zeros(shape=self.arg_shape_dict['res5c_branch2b_weight'])
 
-# # 
-#         arg_params['offset/p3_weight'] = mx.nd.zeros(shape=self.arg_shape_dict['offset/p3_weight'])
-#         arg_params['offset/p3_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['offset/p3_bias'])       
-        
-#         arg_params['offset/p4_weight'] = mx.nd.zeros(shape=self.arg_shape_dict['offset/p4_weight'])
-#         arg_params['offset/p4_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['offset/p4_bias'])
 
-   
-#         arg_params['offset/p5_weight'] = mx.nd.zeros(shape=self.arg_shape_dict['offset/p5_weight'])
-#         arg_params['offset/p5_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['offset/p5_bias'])
-# # 
-
-        # arg_params['res5a_branch2b_offset_weight'] = mx.nd.zeros(shape=self.arg_shape_dict['res5a_branch2b_offset_weight'])
-        # arg_params['res5a_branch2b_offset_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['res5a_branch2b_offset_bias'])
-        # arg_params['res5b_branch2b_offset_weight'] = mx.nd.zeros(shape=self.arg_shape_dict['res5b_branch2b_offset_weight'])
-        # arg_params['res5b_branch2b_offset_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['res5b_branch2b_offset_bias'])
-        # arg_params['res5c_branch2b_offset_weight'] = mx.nd.zeros(shape=self.arg_shape_dict['res5c_branch2b_offset_weight'])
-        # arg_params['res5c_branch2b_offset_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['res5c_branch2b_offset_bias'])
-
-     
-       
-        # arg_params['fc_new_1_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['fc_new_1_weight'])
-        # arg_params['fc_new_1_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['fc_new_1_bias'])
-        # arg_params['fc_new_2_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['fc_new_2_weight'])
-        # arg_params['fc_new_2_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['fc_new_2_bias'])
-        # arg_params['rcnn_cls_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['rcnn_cls_weight'])
-        # arg_params['rcnn_cls_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['rcnn_cls_bias'])
-        # arg_params['rcnn_bbox_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['rcnn_bbox_weight'])
-        # arg_params['rcnn_bbox_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['rcnn_bbox_bias'])
 
 

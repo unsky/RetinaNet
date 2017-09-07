@@ -18,15 +18,15 @@ class FocalLossOperator(mx.operator.CustomOp):
       
         cls_score = in_data[0].asnumpy()
         labels = in_data[1].asnumpy()
-        print len(labels)
+        cls_score = cls_score.reshape((len(labels[0]),in_data[0].shape[3]))
+        self.num_class = in_data[0].shape[3]
+  
         self._labels = labels
 
         pro_ = np.exp(cls_score - cls_score.max(axis=1).reshape((cls_score.shape[0], 1)))
         pro_ /= pro_.sum(axis=1).reshape((cls_score.shape[0], 1))
-        print "---------------------"
+  
         self.pro_ = pro_
-        print 'label',labels[0]
-        print 'pro:',pro_[0]
        
         self._pt = pro_[np.arange(pro_.shape[0],dtype = 'int'), labels.astype('int')]
  
@@ -43,18 +43,23 @@ class FocalLossOperator(mx.operator.CustomOp):
         pro_ = self.pro_
         #i!=j
         pt = self._pt + 1e-14
-    
-        pt = pt.reshape(len(pt),1)
-        dx =  self._alpha * np.power(1 - pt, self._gamma - 1) * (self._gamma * (-1 * pt * pro_) * np.log(pt) + pro_ * (1 - pt)) * 1.0 
+
+        pt = pt.reshape(len(pt[0]),1)
+        dx = (1- self._alpha) * np.power(1 - pt, self._gamma - 1) * (self._gamma * (-1 * pt * pro_) * np.log(pt) + pro_ * (1 - pt)) * 1.0 
 
         ####i==j 
         #reload pt
         pt = self._pt + 1e-14
         dx[np.arange(pro_.shape[0],dtype = 'int'), labels.astype('int')]  = self._alpha* np.power(1 - pt, self._gamma) * (self._gamma * pt * np.log(pt) + pt -1) * (1.0)
+   
+        ig_ind = np.where(labels[0]==-1)
+        dx[ig_ind,: ]=0 
+
       
-        print 'dx',dx[0]
+
     
         dx /= labels.shape[0] ##batch 
+        dx = dx.reshape((1,1,len(labels[0]),self.num_class))
 
         self.assign(in_grad[0], req[0], mx.nd.array(dx))
         self.assign(in_grad[1],req[1],0)
@@ -78,7 +83,8 @@ class FocalLossProp(mx.operator.CustomOpProp):
     def infer_shape(self, in_shape):
         data_shape = in_shape[0]
         labels_shape = in_shape[1]
-        out_shape = data_shape
+
+        out_shape = [labels_shape[1],data_shape[3]]
         return  [data_shape, labels_shape],[out_shape]
 
     def create_operator(self, ctx, shapes, dtypes):

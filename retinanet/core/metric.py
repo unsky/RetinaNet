@@ -41,9 +41,12 @@ class p3RPNAccMetric(mx.metric.EvalMetric):
         pred_label = pred_label.reshape((pred_label.shape[0], -1))
         # label (b, p)
         label = label.asnumpy().astype('int32')
+        label = label[0]
 
         # filter with keep_inds
-        keep_inds = np.where(label != -1)
+        print len(label)
+        keep_inds = np.where((label != -1)&(label!=0))
+        print len(keep_inds[0])
         pred_label = pred_label[keep_inds]
         label = label[keep_inds]
 
@@ -64,9 +67,10 @@ class p4RPNAccMetric(mx.metric.EvalMetric):
         pred_label = pred_label.reshape((pred_label.shape[0], -1))
         # label (b, p)
         label = label.asnumpy().astype('int32')
-
+        label = label[0]
         # filter with keep_inds
-        keep_inds = np.where(label != -1)
+        keep_inds = np.where((label != -1)&(label!=0))
+     #   keep_inds = np.where(label != -1)
         pred_label = pred_label[keep_inds]
         label = label[keep_inds]
 
@@ -86,9 +90,10 @@ class p5RPNAccMetric(mx.metric.EvalMetric):
         pred_label = pred_label.reshape((pred_label.shape[0], -1))
         # label (b, p)
         label = label.asnumpy().astype('int32')
-
+        label = label[0]
+        keep_inds = np.where((label != -1)&(label!=0))
         # filter with keep_inds
-        keep_inds = np.where(label != -1)
+       # keep_inds = np.where(label != -1)
         pred_label = pred_label[keep_inds]
         label = label[keep_inds]
 
