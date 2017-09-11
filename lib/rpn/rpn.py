@@ -67,7 +67,7 @@ def assign_anchor(feat_shape_p3,feat_shape_p4,feat_shape_p5,
                   gt_boxes, im_info, cfg,
                   feat_stride_p3=4,scales_p3=(8,), ratios_p3=(0.75, 1, 1.5),
                   feat_stride_p4=8,scales_p4=(8,), ratios_p4=(0.75, 1, 1.5),
-                  feat_stride_p5=16,scales_p5=(8,), ratios_p5=(0.75, 1, 1.5),allowed_border=1000):
+                  feat_stride_p5=16,scales_p5=(8,), ratios_p5=(0.75, 1, 1.5),allowed_border=1):
     
     """
     assign ground truth boxes to anchor positions
@@ -84,18 +84,15 @@ def assign_anchor(feat_shape_p3,feat_shape_p4,feat_shape_p5,
     'bbox_inside_weight': *todo* mark the assigned anchors
     'bbox_outside_weight': used to normalize the bbox_loss, all weights sums to RPN_POSITIVE_WEIGHT
     """
-    allowed_border=1
+    allowed_border=10
     feat_shape = [feat_shape_p3,feat_shape_p4,feat_shape_p5]
     feat_stride=[4,8,16]
     scales=(8,)
     ratios=(0.5, 1, 2)
 
     
-
-    def _unmap(data, count, inds, fill=0, allowed_border=allowed_border):
+    def _unmap(data, count, inds, fill=0):
         """" unmap a subset inds of data into original data of size count """
-        if allowed_border:
-            return data
         if len(data.shape) == 1:
             ret = np.empty((count,), dtype=np.float32)
             ret.fill(fill)
@@ -113,17 +110,17 @@ def assign_anchor(feat_shape_p3,feat_shape_p4,feat_shape_p5,
     scales = np.array(scales, dtype=np.float32)
     if len(feat_stride) != len(feat_shape):
         assert('length of feat_stride is not equal to length of feat_shape')
-    all_anchors_list = []
-    anchors_counter = []
-    total_anchors = 0
-    t = time.time()
+    
+    labels_list =[]
+    bbox_targets_list =[]
+    bbox_weights_list = []
     #print 'length of feat_shape: ',len(feat_shape)
     for i in range(len(feat_shape)):
+        total_anchors = 0
         base_anchors = generate_anchors(base_size=feat_stride[i], ratios=list(ratios), scales=scales)
         num_anchors = base_anchors.shape[0]#3
         #print feat_shape[i]
         feat_height, feat_width = (feat_shape[i])[-2:]
-
         # 1. generate proposals from bbox deltas and shifted anchors
         shift_x = np.arange(0, feat_width) * feat_stride[i]
         shift_y = np.arange(0, feat_height) * feat_stride[i]
@@ -135,123 +132,78 @@ def assign_anchor(feat_shape_p3,feat_shape_p4,feat_shape_p5,
         # reshape to (K*A, 4) shifted anchors
         A = num_anchors#3
         K = shifts.shape[0]#h*w
-        i_all_anchors = base_anchors.reshape((1, A, 4)) + shifts.reshape((1, K, 4)).transpose((1, 0, 2))
-        i_all_anchors = i_all_anchors.reshape((K * A, 4))#(k*A,4) in the original image
-        all_anchors_list.append(i_all_anchors)
-        i_total_anchors = int(K * A)#3*w*h
-        total_anchors += i_total_anchors
-        anchors_counter.append(total_anchors)
+        all_anchors = base_anchors.reshape((1, A, 4)) + shifts.reshape((1, K, 4)).transpose((1, 0, 2))
+        all_anchors = all_anchors.reshape((K * A, 4))#(k*A,4) in the original image
+        
 
-        # only keep anchors inside the image, but in FPN, author allowed anchor outside of image
-        # inds_inside = np.where((all_anchors[:, 0] >= -allowed_border) &
-        #                        (all_anchors[:, 1] >= -allowed_border) &
-        #                        (all_anchors[:, 2] < im_info[1] + allowed_border) &
-        #                        (all_anchors[:, 3] < im_info[0] + allowed_border))[0]
+         # keep only inside anchors
+        anchors = all_anchors
+        inds_inside = np.where((all_anchors[:, 0] >= -allowed_border) &
+                           (all_anchors[:, 1] >= -allowed_border) &
+                           (all_anchors[:, 2] < im_info[1] + allowed_border) &
+                           (all_anchors[:, 3] < im_info[0] + allowed_border))[0]
+        # label: 1 is positive, 0 is negative, -1 is dont care
+        total_anchors = len(inds_inside)#3*w*h
+        anchors = all_anchors[inds_inside, :]
+        labels = np.empty((len(inds_inside),), dtype=np.float32)
+        labels.fill(-1)
 
-    all_anchors = np.array(all_anchors_list[0])#(3*h1*w1,4)
-    for i_anchors in all_anchors_list[1:]:
-        all_anchors = np.vstack((all_anchors, i_anchors))
-    #all_anchors:[total_anchors,4]
-    # label: 1 is positive, 0 is negative, -1 is dont care
-    labels = np.empty((total_anchors,), dtype=np.float32)
-    labels.fill(-1)
-    #print 'get anchors spends :{:.4f}s'.format(time.time()-t)
-    if gt_boxes.size > 0:
-        # overlap between the anchors and the gt boxes
-        # overlaps (ex, gt)
-        #t = time.time()
-        overlaps = bbox_overlaps(all_anchors.astype(np.float), gt_boxes.astype(np.float))
-        #print 'bbox overlaps spends :{:.4f}s'.format(time.time()-t)
-        argmax_overlaps = overlaps.argmax(axis=1)
-        gt_labels = gt_boxes[:,-1]
-        gt_labels_ =  np.zeros((total_anchors, len(gt_labels)), dtype=np.int)
-        gt_labels_[:,:] = gt_labels
-        #print gt_labels_ 
-        labels = gt_labels_[np.arange(total_anchors),argmax_overlaps]
-        #print labels
-        max_overlaps = overlaps[np.arange(total_anchors), argmax_overlaps]
-     #   print 'cc',max_overlaps
-        gt_argmax_overlaps = overlaps.argmax(axis=0)
-        gt_max_overlaps = overlaps[gt_argmax_overlaps, np.arange(overlaps.shape[1])]
-        gt_argmax_overlaps = np.where(overlaps == gt_max_overlaps)[0]
+        if gt_boxes.size > 0:
+            overlaps = bbox_overlaps(anchors.astype(np.float), gt_boxes.astype(np.float))
+      
+            argmax_overlaps = overlaps.argmax(axis=1)
+            gt_labels = gt_boxes[:,-1]
+            gt_labels_ =  np.zeros((total_anchors, len(gt_labels)), dtype=np.int)
+            gt_labels_[:,:] = gt_labels
+    
+            labels = gt_labels_[np.arange(total_anchors),argmax_overlaps]
 
-        if not cfg.TRAIN.RPN_CLOBBER_POSITIVES:
-            # assign bg labels first so that positive labels can clobber them
-            labels[max_overlaps < cfg.TRAIN.RPN_NEGATIVE_OVERLAP] = 0
+            max_overlaps = overlaps[np.arange(total_anchors), argmax_overlaps]
+      
+            gt_argmax_overlaps = overlaps.argmax(axis=0)
+            gt_max_overlaps = overlaps[gt_argmax_overlaps, np.arange(overlaps.shape[1])]
+            gt_argmax_overlaps = np.where(overlaps == gt_max_overlaps)[0]
 
-        # fg label: for each gt, anchor with highest overlap
-        labels[gt_argmax_overlaps] = 1
-        labels[(max_overlaps >= cfg.TRAIN.RPN_NEGATIVE_OVERLAP) & (max_overlaps < cfg.TRAIN.RPN_POSITIVE_OVERLAP)] = -1
-    else:
-        labels[:] = 0
+            if not cfg.TRAIN.RPN_CLOBBER_POSITIVES:
+               labels[max_overlaps < cfg.TRAIN.RPN_NEGATIVE_OVERLAP] = 0
 
-    bbox_targets = np.zeros((total_anchors, 4), dtype=np.float32)
-    if gt_boxes.size > 0:
-        bbox_targets[:] = bbox_transform(all_anchors, gt_boxes[argmax_overlaps, :4])
+    
+            labels[gt_argmax_overlaps] = 1
+            labels[(max_overlaps >= cfg.TRAIN.RPN_NEGATIVE_OVERLAP) & (max_overlaps < cfg.TRAIN.RPN_POSITIVE_OVERLAP)] = -1
+            # bg_inds = np.where(labels == 0)[0]
+            # if len(bg_inds) > 256:
+            #     disable_inds = npr.choice(bg_inds, size=(len(bg_inds) - 256), replace=False)
+            # labels[disable_inds] = -1
+        else:
+            labels[:] = 0
 
-    bbox_weights = np.zeros((total_anchors, 4), dtype=np.float32)
-    bbox_weights[labels == 1, :] = np.array(cfg.TRAIN.RPN_BBOX_WEIGHTS)
+        bbox_targets = np.zeros((total_anchors, 4), dtype=np.float32)
+        if gt_boxes.size > 0:
+            bbox_targets[:] = bbox_transform(anchors, gt_boxes[argmax_overlaps, :4])
+        bbox_weights = np.zeros((total_anchors, 4), dtype=np.float32)
+        bbox_weights[labels >0, :] = np.array(cfg.TRAIN.RPN_BBOX_WEIGHTS)
+
+    
+        # map up to original set of anchors
+        labels = _unmap(labels, int(K * A), inds_inside, fill=-1)
+        bbox_targets = _unmap(bbox_targets, int(K * A), inds_inside, fill=0)
+        bbox_weights = _unmap(bbox_weights, int(K * A), inds_inside, fill=0)
+ 
+        
+
+        labels = labels.reshape((1, A * feat_height * feat_width))
+    
+        bbox_targets = bbox_targets.reshape((1, feat_height, feat_width, A * 4)).transpose(0, 3, 1, 2)
+        bbox_weights = bbox_weights.reshape((1, feat_height, feat_width, A * 4)).transpose((0, 3, 1, 2))
+        labels_list.append(labels)
+        bbox_targets_list.append(bbox_targets)
+        bbox_weights_list.append(bbox_weights)
 
 
-    #print 'choose labels spends :{:.4f}s'.format(time.time()-t_1_1)
-    #print 'sort labels spends :{:.4f}s'.format(time.time()-t_1)
-    # map up to original set of anchors
-    labels_list = []
-    bbox_targets_list = []
-    bbox_weights_list = []
-    labels_list.append(_unmap(labels[:anchors_counter[0]], anchors_counter[0], range(anchors_counter[0]), fill=-1))
-    bbox_targets_list.append(_unmap(bbox_targets[range(anchors_counter[0]),:], anchors_counter[0], range(anchors_counter[0]), fill=0))
-    bbox_weights_list.append(_unmap(bbox_weights[range(anchors_counter[0]),:], anchors_counter[0], range(anchors_counter[0]), fill=0))
-    for i in range(1, len(feat_shape)):
-        count = anchors_counter[i]-anchors_counter[i-1]
-        labels_list.append(_unmap(labels[anchors_counter[i-1]:anchors_counter[i]], count, range(count), fill=-1)) 
-        bbox_targets_list.append(_unmap(bbox_targets[anchors_counter[i-1]:anchors_counter[i],:], count, range(count), fill=0))
-        bbox_weights_list.append(_unmap(bbox_weights[anchors_counter[i-1]:anchors_counter[i],:], count, range(count), fill=0))
-    feat_heights = []
-    feat_widths = []
-    for i in range(len(feat_shape)):
-        feat_heights.append(feat_shape[i][-2])
-        feat_widths.append(feat_shape[i][-1])
-    #print '_unmap spends :{:.4f}s'.format(time.time()-t_2)
-    label1 = labels_list[0].reshape((1, feat_heights[0], feat_widths[0], A)).transpose(0, 3, 1, 2)
-    labels1 = label1.reshape((1, A * feat_heights[0] * feat_widths[0]))
-    bbox_targets1 = bbox_targets_list[0].reshape((1, feat_heights[0], feat_widths[0], A * 4)).transpose(0, 3, 1, 2)
-    bbox_weights1 = bbox_weights_list[0].reshape((1, feat_heights[0], feat_widths[0], A * 4)).transpose((0, 3, 1, 2))
 
-    label2 = labels_list[1].reshape((1, feat_heights[1], feat_widths[1], A)).transpose(0, 3, 1, 2)
-    labels2 = label2.reshape((1, A * feat_heights[1] * feat_widths[1]))
-    bbox_targets2 = bbox_targets_list[1].reshape((1, feat_heights[1], feat_widths[1], A * 4)).transpose(0, 3, 1, 2)
-    bbox_weights2 = bbox_weights_list[1].reshape((1, feat_heights[1], feat_widths[1], A * 4)).transpose((0, 3, 1, 2))
-
-    label3 = labels_list[2].reshape((1, feat_heights[2], feat_widths[2], A)).transpose(0, 3, 1, 2)
-    labels3 = label3.reshape((1, A * feat_heights[2] * feat_widths[2]))
-    bbox_targets3 = bbox_targets_list[2].reshape((1, feat_heights[2], feat_widths[2], A * 4)).transpose(0, 3, 1, 2)
-    bbox_weights3 = bbox_weights_list[2].reshape((1, feat_heights[2], feat_widths[2], A * 4)).transpose((0, 3, 1, 2))
-
-    if len(feat_shape)>3:
-        label4 = labels_list[3].reshape((1, feat_heights[3], feat_widths[3], A)).transpose(0, 3, 1, 2)
-        labels4 = label4.reshape((1, A * feat_heights[3] * feat_widths[3]))
-        bbox_targets4 = bbox_targets_list[3].reshape((1, feat_heights[3], feat_widths[3], A * 4)).transpose(0, 3, 1, 2)
-        bbox_weights4 = bbox_weights_list[3].reshape((1, feat_heights[3], feat_widths[3], A * 4)).transpose((0, 3, 1, 2))
-
-    if len(feat_shape)>4:
-        label5 = labels_list[4].reshape((1, feat_heights[4], feat_widths[4], A)).transpose(0, 3, 1, 2)
-        labels5 = label5.reshape((1, A * feat_heights[4] * feat_widths[4]))
-        bbox_targets5 = bbox_targets_list[4].reshape((1, feat_heights[4], feat_widths[4], A * 4)).transpose(0, 3, 1, 2)
-        bbox_weights5 = bbox_weights_list[4].reshape((1, feat_heights[4], feat_widths[4], A * 4)).transpose((0, 3, 1, 2))
-    if len(feat_shape)>5:
-        assert ('RPN anchorloader only support max number of feature map of 5!')
     if len(feat_shape) == 3:
-        label = {'label/p3': labels1, 'label/p4': labels2, 'label/p5': labels3,
-            'bbox_target/p3': bbox_targets1, 'bbox_target/p4': bbox_targets2, 'bbox_target/p5': bbox_targets3,
-            'bbox_weight/p3': bbox_weights1, 'bbox_weight/p4': bbox_weights2, 'bbox_weight/p5': bbox_weights3}
-    elif len(feat_shape) == 4:
-        label = {'label1': labels1, 'label2': labels2, 'label3': labels3, 'label4': labels4,
-                    'bbox_target1': bbox_targets1, 'bbox_target2': bbox_targets2, 'bbox_target3': bbox_targets3, 'bbox_target4': bbox_targets4,
-                    'bbox_weight1': bbox_weights1, 'bbox_weight2': bbox_weights2, 'bbox_weight3': bbox_weights3, 'bbox_weight4': bbox_weights4}
-    elif len(feat_shape) == 5:
-        label = {'label1': labels1, 'label2': labels2, 'label3': labels3, 'label4': labels4, 'label5': labels5,
-            'bbox_target1': bbox_targets1, 'bbox_target2': bbox_targets2, 'bbox_target3': bbox_targets3, 'bbox_target4': bbox_targets4, 'bbox_target5': bbox_targets5,
-            'bbox_weight1': bbox_weights1, 'bbox_weight2': bbox_weights2, 'bbox_weight3': bbox_weights3, 'bbox_weight4': bbox_weights4, 'bbox_weight5':bbox_weights5}
-    #print 'get labels spends :{:.4f}s'.format(time.time()-t_2)
+          label = {'label/p3': labels_list[0], 'label/p4': labels_list[1], 'label/p5': labels_list[2],
+           'bbox_target/p3': bbox_targets_list[0], 'bbox_target/p4': bbox_targets_list[1], 'bbox_target/p5': bbox_targets_list[2],
+           'bbox_weight/p3': bbox_weights_list[0], 'bbox_weight/p4': bbox_weights_list[1], 'bbox_weight/p5': bbox_weights_list[2]}
+ 
     return label

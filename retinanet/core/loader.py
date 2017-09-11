@@ -130,7 +130,7 @@ class AnchorLoader(mx.io.DataIter):
                  feat_stride_p5=16,
                  anchor_scales_p5=(8, 16, 32), 
                  anchor_ratios_p5=(0.5, 1, 2),
-                 allowed_border=0,
+                 allowed_border=1,
                  aspect_grouping=False):
         """
         This Iter will provide roi data to Fast R-CNN network

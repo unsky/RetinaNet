@@ -58,9 +58,9 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch, lr, 
     sym_instance = eval(config.symbol + '.' + config.symbol)()
     sym = sym_instance.get_symbol(config, is_train=True)
 
-    feat_sym_p3 = sym.get_internals()['rpn_cls_score/p3_output']    
-    feat_sym_p4 = sym.get_internals()['rpn_cls_score/p4_output']
-    feat_sym_p5 = sym.get_internals()['rpn_cls_score/p5_output']
+    feat_sym_p3 = sym.get_internals()['cls_score/p3_output']    
+    feat_sym_p4 = sym.get_internals()['cls_score/p4_output']
+    feat_sym_p5 = sym.get_internals()['cls_score/p5_output']
 
 
     # setup multi-gpu
@@ -103,8 +103,7 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch, lr, 
     max_data_shape.append(('gt_boxes', (config.TRAIN.BATCH_IMAGES, 100, 5)))
     print 'providing maximum shape', max_data_shape, max_label_shape
         # infer max shape
-    print train_data.provide_data_single
-    print train_data.provide_label_single
+
     data_shape_dict = dict(train_data.provide_data_single + train_data.provide_label_single)
     pprint.pprint(data_shape_dict)
     sym_instance.infer_shape(data_shape_dict)
@@ -134,25 +133,13 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch, lr, 
 
     # decide training params
     # metric
-    rpn_eval_metric_p3 = metric.p3RPNAccMetric()
-    rpn_cls_metric_p3 = metric.p3RPNLogLossMetric()
-    rpn_bbox_metric_p3 = metric.p3RPNL1LossMetric()
-
-    rpn_eval_metric_p4 = metric.p4RPNAccMetric()
-    rpn_cls_metric_p4 = metric.p4RPNLogLossMetric()
-    rpn_bbox_metric_p4 = metric.p4RPNL1LossMetric()
-
-    rpn_eval_metric_p5 = metric.p5RPNAccMetric()
-    rpn_cls_metric_p5 = metric.p5RPNLogLossMetric()
-    rpn_bbox_metric_p5 = metric.p5RPNL1LossMetric()
-
-
+    Retina_eval_metric = metric.RetinaAccMetric()
+    Retina_cls_metric = metric.RetinaFocalLossMetric()
+    Retina_bbox_metric = metric.RetinaL1LossMetric()
 
     eval_metrics = mx.metric.CompositeEvalMetric()
     # rpn_eval_metric, rpn_cls_metric, rpn_bbox_metric, eval_metric, cls_metric, bbox_metric
-    for child_metric in [rpn_eval_metric_p3, rpn_cls_metric_p3, rpn_bbox_metric_p3,
-                        rpn_eval_metric_p4, rpn_cls_metric_p4, rpn_bbox_metric_p4,
-                        rpn_eval_metric_p5, rpn_cls_metric_p5, rpn_bbox_metric_p5]:
+    for child_metric in [Retina_eval_metric,Retina_cls_metric,Retina_bbox_metric]:
         eval_metrics.add(child_metric)
     # callback
     batch_end_callback = callback.Speedometer(train_data.batch_size, frequent=args.frequent)

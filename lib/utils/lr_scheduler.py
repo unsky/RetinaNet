@@ -56,13 +56,15 @@ class WarmupMultiFactorScheduler(LRScheduler):
         # NOTE: use while rather than if  (for continuing training via load_epoch)
         if self.warmup and num_update < self.warmup_step:
             return self.warmup_lr
+     #   print num_update
         while self.cur_step_ind <= len(self.step)-1:
             if num_update > self.step[self.cur_step_ind]:
+                print self.step[self.cur_step_ind]
                 self.count = self.step[self.cur_step_ind]
                 self.cur_step_ind += 1
                 self.base_lr *= self.factor
                 logging.info("Update[%d]: Change learning rate to %0.5e",
                              num_update, self.base_lr)
             else:
-                return self.base_lr
+                return self.base_lr        
         return self.base_lr
