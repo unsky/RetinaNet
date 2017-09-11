@@ -1027,7 +1027,7 @@ class retina_resnet_101(Symbol):
         return group
 
     def init_weight(self, cfg, arg_params, aux_params):
-        pi = 0.0000001
+        pi = 0.01
 
 
         arg_params['cls_conv1_3x3_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['cls_conv1_3x3_weight'])

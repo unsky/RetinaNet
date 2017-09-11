@@ -49,7 +49,7 @@ config.TRAIN = edict()
 
 config.TRAIN.lr = 0
 config.TRAIN.lr_step = ''
-config.TRAIN.lr_factor = 0.1
+config.TRAIN.lr_factor = 0
 config.TRAIN.warmup = False
 config.TRAIN.warmup_lr = 0
 config.TRAIN.warmup_step = 0

@@ -66,5 +66,6 @@ class WarmupMultiFactorScheduler(LRScheduler):
                 logging.info("Update[%d]: Change learning rate to %0.5e",
                              num_update, self.base_lr)
             else:
+             #   print self.base_lr
                 return self.base_lr        
         return self.base_lr
