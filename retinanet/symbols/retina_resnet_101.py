@@ -1027,7 +1027,7 @@ class retina_resnet_101(Symbol):
         return group
 
     def init_weight(self, cfg, arg_params, aux_params):
-        pi = 0.01
+        pi = 0.00001
 
 
         arg_params['cls_conv1_3x3_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['cls_conv1_3x3_weight'])
@@ -1054,6 +1054,7 @@ class retina_resnet_101(Symbol):
         arg_params['box_conv4_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['box_conv4_bias'])
         arg_params['box_pred_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['box_pred_weight'])
         arg_params['box_pred_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['box_pred_bias'])
+        #*(-np.log((1-pi)/pi))
         
 
 

@@ -57,6 +57,7 @@ class RetinaAccMetric(mx.metric.EvalMetric):
      #   keep_inds = np.where(label != -1)
         pred_label = pred_label[keep_inds]
         label = label[keep_inds]
+
         self.sum_metric += np.sum(pred_label.flat == label.flat)
         self.num_inst += len(pred_label.flat)
 

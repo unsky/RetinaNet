@@ -84,11 +84,11 @@ def assign_anchor(feat_shape_p3,feat_shape_p4,feat_shape_p5,
     'bbox_inside_weight': *todo* mark the assigned anchors
     'bbox_outside_weight': used to normalize the bbox_loss, all weights sums to RPN_POSITIVE_WEIGHT
     """
-    allowed_border=10
+ 
     feat_shape = [feat_shape_p3,feat_shape_p4,feat_shape_p5]
     feat_stride=[4,8,16]
     scales=(8,)
-    ratios=(0.5, 1, 2)
+    ratios=(0.25,0.5, 1, 2,3)
 
     
     def _unmap(data, count, inds, fill=0):
@@ -138,14 +138,14 @@ def assign_anchor(feat_shape_p3,feat_shape_p4,feat_shape_p5,
 
          # keep only inside anchors
         anchors = all_anchors
-        inds_inside = np.where((all_anchors[:, 0] >= -allowed_border) &
-                           (all_anchors[:, 1] >= -allowed_border) &
-                           (all_anchors[:, 2] < im_info[1] + allowed_border) &
-                           (all_anchors[:, 3] < im_info[0] + allowed_border))[0]
+        # inds_inside = np.where((all_anchors[:, 0] >= -allowed_border) &
+        #                    (all_anchors[:, 1] >= -allowed_border) &
+        #                    (all_anchors[:, 2] < im_info[1] + allowed_border) &
+        #                    (all_anchors[:, 3] < im_info[0] + allowed_border))[0]
         # label: 1 is positive, 0 is negative, -1 is dont care
-        total_anchors = len(inds_inside)#3*w*h
-        anchors = all_anchors[inds_inside, :]
-        labels = np.empty((len(inds_inside),), dtype=np.float32)
+        total_anchors = len(anchors)#3*w*h
+     #   anchors = all_anchors[inds_inside, :]
+        labels = np.empty((total_anchors,), dtype=np.float32)
         labels.fill(-1)
 
         if gt_boxes.size > 0:
@@ -185,9 +185,9 @@ def assign_anchor(feat_shape_p3,feat_shape_p4,feat_shape_p5,
 
     
         # map up to original set of anchors
-        labels = _unmap(labels, int(K * A), inds_inside, fill=-1)
-        bbox_targets = _unmap(bbox_targets, int(K * A), inds_inside, fill=0)
-        bbox_weights = _unmap(bbox_weights, int(K * A), inds_inside, fill=0)
+        labels = _unmap(labels, int(K * A), range(total_anchors), fill=-1)
+        bbox_targets = _unmap(bbox_targets, int(K * A), range(total_anchors), fill=0)
+        bbox_weights = _unmap(bbox_weights, int(K * A), range(total_anchors), fill=0)
  
         
 

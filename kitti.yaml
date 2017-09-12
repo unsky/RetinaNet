@@ -42,37 +42,42 @@ network:
   p3_RPN_FEAT_STRIDE: 4
 
   p3_ANCHOR_RATIOS:
+  - 0.25
   - 0.5
   - 1
   - 2
+  - 3
   p3_ANCHOR_SCALES:
   - 8
-  p3_NUM_ANCHORS: 3
+  p3_NUM_ANCHORS: 5
   
 
   p4_RCNN_FEAT_STRIDE: 8
   p4_RPN_FEAT_STRIDE: 8
 
   p4_ANCHOR_RATIOS:
+  - 0.25
   - 0.5
   - 1
   - 2
+  - 3
   p4_ANCHOR_SCALES:
   - 8
-  p4_NUM_ANCHORS: 3
+  p4_NUM_ANCHORS: 5
 
 
   p5_RCNN_FEAT_STRIDE: 16
   p5_RPN_FEAT_STRIDE: 16
 
   p5_ANCHOR_RATIOS:
+  - 0.25
   - 0.5
   - 1
   - 2
+  - 3
   p5_ANCHOR_SCALES:
   - 8
-  p5_NUM_ANCHORS: 3
-
+  p5_NUM_ANCHORS: 5
 
 dataset:
   NUM_CLASSES: 4
@@ -84,14 +89,14 @@ dataset:
   proposal: rpn
 TRAIN:
   lr: 0.0001
-  lr_step: '5.333'
+  lr_step: '50.333'
   
   warmup: false
   warmup_lr: 0.02
   # typically we will use 8000 warmup step for single GPU for COCO
   warmup_step: 1000
   begin_epoch: 0
-  end_epoch: 40
+  end_epoch: 100
   model_prefix: 'rcnn_kitti'
   # whether resume training
   RESUME: false
