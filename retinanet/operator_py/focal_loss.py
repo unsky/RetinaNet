@@ -24,6 +24,8 @@ class FocalLossOperator(mx.operator.CustomOp):
     
         self._labels = labels
         pro_ = (mx.nd.sigmoid(cls_score) + 1e-14).asnumpy()
+        #(mx.nd.SoftmaxActivation(cls_score) + 1e-14).asnumpy()
+        #(mx.nd.sigmoid(cls_score) + 1e-14).asnumpy()
         print "pro:", pro_[0]
 
         # pro_ = np.exp(1e-14+cls_score - cls_score.max(axis=1).reshape((cls_score.shape[0], 1)))
@@ -63,17 +65,22 @@ class FocalLossOperator(mx.operator.CustomOp):
             negative_inds = np.where(labels!=self.ignore_label)
             pt = pt[negative_inds]
         dx[negative_inds, labels[negative_inds].astype('int')]  = (self._alpha)*np.power(1 - pt, self._gamma) * (self._gamma * pt * np.log(pt) + pt -1) * (1.0)
+        # (self._alpha)*(-1)*dx[negative_inds, labels[negative_inds].astype('int')]
+        #(self._alpha)*np.power(1 - pt, self._gamma) * (self._gamma * pt * np.log(pt) + pt -1) * (1.0)
         #0.25*(dx[negative_inds, labels[negative_inds].astype('int')]-1)
         # (self._alpha)*(-1)*dx[negative_inds, labels[negative_inds].astype('int')]
         #(self._alpha)*np.power(1 - pt, self._gamma) * (self._gamma * pt * np.log(pt) + pt -1) * (1.0)
 
-        # print 'label:',labels[negative_inds][0]
+        norm_scale = np.where((labels)!=0&(labels!=self.ignore_label)) 
 
-        # print 'dx',dx[negative_inds][0]
-
-        dx /= labels.shape[0] ##batch 
+        if len(norm_scale[0])==0:
+            scale = 1
+        else:
+            scale = len(norm_scale[0])
+        dx /= 120240 ##batch 
         # ig_labels = np.where(labels==-1)
         # dx[ig_labels,:]=0
+    
         self.assign(in_grad[0], req[0], mx.nd.array(dx))
         self.assign(in_grad[1],req[1],0)
  

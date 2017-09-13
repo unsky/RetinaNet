@@ -34,11 +34,13 @@ class RetinaAccMetric(mx.metric.EvalMetric):
        # label = label[0]
         # filter with keep_inds
 #        print len(label)
-        keep_inds = np.where(label != -1)
-        #&(label!=0))
+        keep_inds = np.where((label != -1)&(label!=0))
+
+
  #       print len(keep_inds[0])
 
         pred_label = pred_label[keep_inds]
+
         label = label[keep_inds]
 
         self.sum_metric += np.sum(pred_label.flat == label.flat)
@@ -53,7 +55,8 @@ class RetinaAccMetric(mx.metric.EvalMetric):
         label = label.asnumpy().astype('int32')[0]
         #label = label[0]
         # filter with keep_inds
-        keep_inds = np.where(label != -1)
+        keep_inds = np.where((label != -1)&(label!=0))
+  #      keep_inds = np.where(label != -1)
      #   keep_inds = np.where(label != -1)
         pred_label = pred_label[keep_inds]
         label = label[keep_inds]
@@ -69,7 +72,8 @@ class RetinaAccMetric(mx.metric.EvalMetric):
         # label (b, p)
         label = label.asnumpy().astype('int32')[0]
        # label = label[0]
-        keep_inds = np.where(label != -1)
+        keep_inds = np.where((label != -1)&(label!=0))
+    #    keep_inds = np.where(label != -1)
         # filter with keep_inds
        # keep_inds = np.where(label != -1)
         pred_label = pred_label[keep_inds]

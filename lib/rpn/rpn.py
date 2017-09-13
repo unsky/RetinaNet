@@ -87,8 +87,8 @@ def assign_anchor(feat_shape_p3,feat_shape_p4,feat_shape_p5,
  
     feat_shape = [feat_shape_p3,feat_shape_p4,feat_shape_p5]
     feat_stride=[4,8,16]
-    scales=(8,)
-    ratios=(0.25,0.5, 1, 2,3)
+    scales=(8,10,12)
+    ratios=(0.5, 1,2)
 
     
     def _unmap(data, count, inds, fill=0):
@@ -103,8 +103,7 @@ def assign_anchor(feat_shape_p3,feat_shape_p4,feat_shape_p5,
             ret[inds, :] = data
         return ret
 
-    DEBUG = False
-    debug = True
+ 
     im_info = im_info[0]
     #print 'im_info: ', im_info
     scales = np.array(scales, dtype=np.float32)
@@ -150,25 +149,22 @@ def assign_anchor(feat_shape_p3,feat_shape_p4,feat_shape_p5,
 
         if gt_boxes.size > 0:
             overlaps = bbox_overlaps(anchors.astype(np.float), gt_boxes.astype(np.float))
-      
+            
             argmax_overlaps = overlaps.argmax(axis=1)
+        
+           
             gt_labels = gt_boxes[:,-1]
             gt_labels_ =  np.zeros((total_anchors, len(gt_labels)), dtype=np.int)
             gt_labels_[:,:] = gt_labels
+         #   print gt_labels_
     
             labels = gt_labels_[np.arange(total_anchors),argmax_overlaps]
-
             max_overlaps = overlaps[np.arange(total_anchors), argmax_overlaps]
       
-            gt_argmax_overlaps = overlaps.argmax(axis=0)
-            gt_max_overlaps = overlaps[gt_argmax_overlaps, np.arange(overlaps.shape[1])]
-            gt_argmax_overlaps = np.where(overlaps == gt_max_overlaps)[0]
-
-            if not cfg.TRAIN.RPN_CLOBBER_POSITIVES:
-               labels[max_overlaps < cfg.TRAIN.RPN_NEGATIVE_OVERLAP] = 0
-
-    
-            labels[gt_argmax_overlaps] = 1
+            # gt_argmax_overlaps = overlaps.argmax(axis=0)
+            # gt_max_overlaps = overlaps[gt_argmax_overlaps, np.arange(overlaps.shape[1])]
+            # gt_argmax_overlaps = np.where(overlaps == gt_max_overlaps)[0]
+            labels[max_overlaps < cfg.TRAIN.RPN_NEGATIVE_OVERLAP] = 0
             labels[(max_overlaps >= cfg.TRAIN.RPN_NEGATIVE_OVERLAP) & (max_overlaps < cfg.TRAIN.RPN_POSITIVE_OVERLAP)] = -1
             # bg_inds = np.where(labels == 0)[0]
             # if len(bg_inds) > 256:

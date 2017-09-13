@@ -42,42 +42,42 @@ network:
   p3_RPN_FEAT_STRIDE: 4
 
   p3_ANCHOR_RATIOS:
-  - 0.25
   - 0.5
   - 1
   - 2
-  - 3
   p3_ANCHOR_SCALES:
   - 8
-  p3_NUM_ANCHORS: 5
+  - 10
+  - 12
+  p3_NUM_ANCHORS: 9
   
 
   p4_RCNN_FEAT_STRIDE: 8
   p4_RPN_FEAT_STRIDE: 8
 
   p4_ANCHOR_RATIOS:
-  - 0.25
   - 0.5
   - 1
   - 2
-  - 3
   p4_ANCHOR_SCALES:
   - 8
-  p4_NUM_ANCHORS: 5
+  - 10
+  - 12
+  p4_NUM_ANCHORS: 9
 
 
   p5_RCNN_FEAT_STRIDE: 16
   p5_RPN_FEAT_STRIDE: 16
 
   p5_ANCHOR_RATIOS:
-  - 0.25
   - 0.5
   - 1
   - 2
-  - 3
   p5_ANCHOR_SCALES:
   - 8
-  p5_NUM_ANCHORS: 5
+  - 10
+  - 12
+  p5_NUM_ANCHORS: 9
 
 dataset:
   NUM_CLASSES: 4
@@ -134,8 +134,8 @@ TRAIN:
   RPN_BATCH_SIZE: 256
   # rpn anchors sampling params
   RPN_FG_FRACTION: 0.5
-  RPN_POSITIVE_OVERLAP: 0.7
-  RPN_NEGATIVE_OVERLAP: 0.3
+  RPN_POSITIVE_OVERLAP: 0.5
+  RPN_NEGATIVE_OVERLAP: 0.4
   RPN_CLOBBER_POSITIVES: false
   # rpn bounding box regression params
   RPN_BBOX_WEIGHTS:
