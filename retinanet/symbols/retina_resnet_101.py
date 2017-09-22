@@ -13,6 +13,7 @@ from operator_py.proposal import *
 from operator_py.box_annotator_ohem import *
 
 from operator_py.focal_loss import *
+from operator_py.check import *
 
 
 class retina_resnet_101(Symbol):
@@ -695,6 +696,7 @@ class retina_resnet_101(Symbol):
     def get_resnet_v1_conv5(self, conv4):
         res5a_branch1 = mx.symbol.Convolution(name='res5a_branch1', data=conv4, num_filter=2048, pad=(0, 0),
                                               kernel=(1, 1), stride=(1, 1), no_bias=True)
+        
         bn5a_branch1 = mx.symbol.BatchNorm(name='bn5a_branch1', data=res5a_branch1, use_global_stats=True, fix_gamma=False, eps=self.eps)
         scale5a_branch1 = bn5a_branch1
         res5a_branch2a = mx.symbol.Convolution(name='res5a_branch2a', data=conv4, num_filter=512, pad=(0, 0),
@@ -705,7 +707,7 @@ class retina_resnet_101(Symbol):
 
         res5a_branch2a_relu = mx.symbol.Activation(name='res5a_branch2a_relu', data=scale5a_branch2a, act_type='relu')
 
-
+           
         # res5a_branch2b_offset = mx.symbol.Convolution(name='res5a_branch2b_offset', data = res5a_branch2a_relu,
         #                                               num_filter=72, pad=(2, 2), kernel=(3, 3), stride=(1, 1), dilate=(2, 2), cudnn_off=True)
         # res5a_branch2b = mx.contrib.symbol.DeformableConvolution(name='res5a_branch2b', data=res5a_branch2a_relu, offset=res5a_branch2b_offset,
@@ -714,6 +716,7 @@ class retina_resnet_101(Symbol):
 
         res5a_branch2b = mx.symbol.Convolution(name='res5a_branch2b', data=res5a_branch2a_relu, num_filter=512, pad=(0, 0),
                                                 kernel=(1, 1), stride=(1, 1), no_bias=True)
+
 
         bn5a_branch2b = mx.symbol.BatchNorm(name='bn5a_branch2b', data=res5a_branch2b, use_global_stats=True,
                                             fix_gamma=False, eps=self.eps)
@@ -766,7 +769,7 @@ class retina_resnet_101(Symbol):
 
         res5c_branch2b = mx.symbol.Convolution(name='res5c_branch2b', data=res5c_branch2a_relu, num_filter=512, pad=(0, 0),
                                                 kernel=(1, 1), stride=(1, 1), no_bias=True)
-
+         
         bn5c_branch2b = mx.symbol.BatchNorm(name='bn5c_branch2b', data=res5c_branch2b, use_global_stats=True,
                                             fix_gamma=False, eps=self.eps)
         scale5c_branch2b = bn5c_branch2b
@@ -911,12 +914,14 @@ class retina_resnet_101(Symbol):
         else:
             data = mx.sym.Variable(name="data")
             im_info = mx.sym.Variable(name="im_info")
-
+        
         # shared convolutional layers
         conv2 = self.get_resnet_v1_conv2(data)#4
         conv3 = self.get_resnet_v1_conv3(conv2)#8
         conv4_ = self.get_resnet_v1_conv4(conv3)#16
         conv4 = self.get_resnet_v1_conv5(conv4_)#16
+
+
 
         ####################################P4 AND P5###########################
         c3 = mx.sym.Convolution(data = conv2, kernel = (1,1), pad = (0,0),stride=(1, 1), num_filter = 256, name = 'c3' )
@@ -934,7 +939,10 @@ class retina_resnet_101(Symbol):
         p4Upx2 = mx.sym.UpSampling(p4, scale =2 , sample_type = 'nearest')
         p4UpCrop = mx.sym.Crop(p4Upx2,c3)
         p3 = mx.sym.ElementWiseSum(name = 'p3', *[c3, p4UpCrop])
-      	newp3 = mx.sym.Convolution(data = p3, kernel = (1,1), pad = (0,0), stride=(1, 1),num_filter = 256,name = 'newp3')    
+      	newp3 = mx.sym.Convolution(data = p3, kernel = (1,1), pad = (0,0), stride=(1, 1),num_filter = 256,name = 'newp3')   
+        
+
+  
  
 
         #####################fpn-rpn###############
@@ -947,7 +955,8 @@ class retina_resnet_101(Symbol):
 
         cls_score_p5 = self.get_cls_subnet(p5,num_anchors_p5,'/p5',num_classes,cls_conv1_3x3_weight,cls_conv1_3x3_bias,cls_conv2_3x3_weight,cls_conv2_3x3_bias,cls_conv3_3x3_weight,cls_conv3_3x3_bias,cls_conv4_3x3_weight,cls_conv4_3x3_bias,cls_score_weight,cls_score_bias)
         rpn_bbox_pred_p5 = self.get_box_subnet(p5,num_anchors_p5,'/p5',num_classes,box_conv1_weight,box_conv1_bias,box_conv2_weight,box_conv2_bias,box_conv3_weight,box_conv3_bias,box_conv4_weight,box_conv4_bias,box_pred_weight,box_pred_bias)
-
+        rpn_bbox_pred_p3 = mx.sym.Custom(op_type='Check', name = 'check', data=rpn_bbox_pred_p3 ) 
+    
         if is_train:
             # rpn_cls_prob_p3 = mx.sym.sigmoid(name ='cls_prob/p3',data = cls_score_p3)
             # rpn_cls_prob_p4 = mx.sym.sigmoid(name ='cls_prob/p4',data = cls_score_p4)
@@ -955,9 +964,9 @@ class retina_resnet_101(Symbol):
 
             # cross_entropy = label * log(out) + (1 - label) * log(1 - out)
             # loss = MakeLoss(cross_entropy)
-            rpn_cls_prob_p3 = mx.sym.Custom(op_type='FocalLoss', name = 'cls_prob/p3', data=cls_score_p3, labels=rpn_label_p3,alpha =0.25, gamma= 2,use_ignore=True,ignore_label=-1)
-            rpn_cls_prob_p4 = mx.sym.Custom(op_type='FocalLoss', name = 'cls_prob/p4', data=cls_score_p4, labels=rpn_label_p4,alpha =0.25, gamma= 2,use_ignore=True,ignore_label=-1)
-            rpn_cls_prob_p5 = mx.sym.Custom(op_type='FocalLoss', name = 'cls_prob/p5', data=cls_score_p5, labels=rpn_label_p5,alpha =0.25, gamma= 2,use_ignore=True,ignore_label=-1)
+            rpn_cls_prob_p3 = mx.sym.Custom(op_type='FocalLoss', name = 'cls_prob/p3', data=cls_score_p3, labels=rpn_label_p3,alpha =0.25, gamma= 5,use_ignore=True,ignore_label=-1)
+            rpn_cls_prob_p4 = mx.sym.Custom(op_type='FocalLoss', name = 'cls_prob/p4', data=cls_score_p4, labels=rpn_label_p4,alpha =0.25, gamma= 5,use_ignore=True,ignore_label=-1)
+            rpn_cls_prob_p5 = mx.sym.Custom(op_type='FocalLoss', name = 'cls_prob/p5', data=cls_score_p5, labels=rpn_label_p5,alpha =0.25, gamma= 5,use_ignore=True,ignore_label=-1)
 
             # cls_score_p3 = mx.sym.Reshape(
             #     data=cls_score_p3, shape=(0, num_classes, -1, 0), name="rpn_cls_score_reshape/p3")
@@ -1039,6 +1048,8 @@ class retina_resnet_101(Symbol):
         arg_params['cls_conv4_3x3_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['cls_conv4_3x3_weight'])
         arg_params['cls_conv4_3x3_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['cls_conv4_3x3_bias'])
         arg_params['cls_score_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['cls_score_weight'])
+     #   arg_params['cls_score_weight'] = mx.initializer.Xavier(rnd_type='uniform', factor_type='avg', magnitude=3)
+       # mx.random.normal(0, 0.01, shape=self.arg_shape_dict['cls_score_weight'])
         arg_params['cls_score_bias'] = mx.nd.ones(shape=self.arg_shape_dict['cls_score_bias'])*(-np.log((1-pi)/pi))
 
 
@@ -1076,11 +1087,11 @@ class retina_resnet_101(Symbol):
         arg_params['newp4_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['newp4_weight'])
         arg_params['newp4_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['newp4_bias'])
 
-        arg_params['res5a_branch2b_weight'] = mx.nd.zeros(shape=self.arg_shape_dict['res5a_branch2b_weight'])
+        arg_params['res5a_branch2b_weight'] =mx.random.normal(0, 0.01, shape=self.arg_shape_dict['res5a_branch2b_weight'])
       
-        arg_params['res5b_branch2b_weight'] = mx.nd.zeros(shape=self.arg_shape_dict['res5b_branch2b_weight'])
+        arg_params['res5b_branch2b_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['res5b_branch2b_weight'])
  
-        arg_params['res5c_branch2b_weight'] = mx.nd.zeros(shape=self.arg_shape_dict['res5c_branch2b_weight'])
+        arg_params['res5c_branch2b_weight'] = mx.random.normal(0, 0.01, shape=self.arg_shape_dict['res5c_branch2b_weight'])
 
 
 

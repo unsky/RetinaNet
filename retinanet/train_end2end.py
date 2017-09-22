@@ -17,7 +17,7 @@ import sys
 from config.config import config, update_config
 
 def parse_args():
-    parser = argparse.ArgumentParser(description='Train Faster-RCNN network')
+    parser = argparse.ArgumentParser(description='Train Retinanet')
     # general
     parser.add_argument('--cfg', help='experiment configure file name', required=True, type=str)
 
@@ -55,12 +55,35 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch, lr, 
 
     # load symbol
     shutil.copy2(os.path.join(curr_path, 'symbols', config.symbol + '.py'), final_output_path)
-    sym_instance = eval(config.symbol + '.' + config.symbol)()
-    sym = sym_instance.get_symbol(config, is_train=True)
+    sym_instance = eval(config.symbol + '.' + config.symbol)()   
 
+    sym = sym_instance.get_retina_symbol(config, is_train=True)
+    feat_sym = []
     feat_sym_p3 = sym.get_internals()['cls_score/p3_output']    
     feat_sym_p4 = sym.get_internals()['cls_score/p4_output']
     feat_sym_p5 = sym.get_internals()['cls_score/p5_output']
+    feat_sym_p6 = sym.get_internals()['cls_score/p6_output'] 
+    feat_sym.append(feat_sym_p3)
+    feat_sym.append(feat_sym_p4)
+    feat_sym.append(feat_sym_p5)
+    feat_sym.append(feat_sym_p6)
+    #######
+    feat_stride = []
+    feat_stride.append(config.network.p3_RPN_FEAT_STRIDE)
+    feat_stride.append(config.network.p4_RPN_FEAT_STRIDE)
+    feat_stride.append(config.network.p5_RPN_FEAT_STRIDE)
+    feat_stride.append(config.network.p6_RPN_FEAT_STRIDE)
+    anchor_scales = []
+    anchor_scales.append(config.network.p3_ANCHOR_SCALES)
+    anchor_scales.append(config.network.p4_ANCHOR_SCALES)
+    anchor_scales.append(config.network.p5_ANCHOR_SCALES)
+    anchor_scales.append(config.network.p6_ANCHOR_SCALES)
+    anchor_ratios = []
+    anchor_ratios.append(config.network.p3_ANCHOR_RATIOS)
+    anchor_ratios.append(config.network.p4_ANCHOR_RATIOS)
+    anchor_ratios.append(config.network.p5_ANCHOR_RATIOS)
+    anchor_ratios.append(config.network.p6_ANCHOR_RATIOS)
+    #############
 
 
     # setup multi-gpu
@@ -83,19 +106,8 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch, lr, 
  
 
     # load training data
-    train_data = AnchorLoader(feat_sym_p3,
-                              feat_sym_p4,
-                              feat_sym_p5,
-                              roidb, config, batch_size=input_batch_size, shuffle=config.TRAIN.SHUFFLE, ctx=ctx,
-                              feat_stride_p3=config.network.p3_RPN_FEAT_STRIDE,
-                              anchor_scales_p3=config.network.p3_ANCHOR_SCALES,
-                              anchor_ratios_p3=config.network.p3_ANCHOR_RATIOS, 
-                              feat_stride_p4=config.network.p4_RPN_FEAT_STRIDE,
-                              anchor_scales_p4=config.network.p4_ANCHOR_SCALES,
-                              anchor_ratios_p4=config.network.p4_ANCHOR_RATIOS, 
-                              feat_stride_p5=config.network.p5_RPN_FEAT_STRIDE,
-                              anchor_scales_p5=config.network.p5_ANCHOR_SCALES,
-                              anchor_ratios_p5=config.network.p5_ANCHOR_RATIOS,                           
+    train_data = AnchorLoader(feat_sym,feat_stride,anchor_scales,anchor_ratios, 
+                              roidb, config, batch_size=input_batch_size, shuffle=config.TRAIN.SHUFFLE, ctx=ctx,                 
                               aspect_grouping=config.TRAIN.ASPECT_GROUPING)
     # infer max shape
     max_data_shape = [('data', (config.TRAIN.BATCH_IMAGES, 3, max([v[0] for v in config.SCALES]), max([v[1] for v in config.SCALES])))]
@@ -134,12 +146,13 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch, lr, 
     # decide training params
     # metric
     Retina_eval_metric = metric.RetinaAccMetric()
+    Retina_toal_eval_metric = metric.RetinaToalAccMetric()
     Retina_cls_metric = metric.RetinaFocalLossMetric()
     Retina_bbox_metric = metric.RetinaL1LossMetric()
 
     eval_metrics = mx.metric.CompositeEvalMetric()
     # rpn_eval_metric, rpn_cls_metric, rpn_bbox_metric, eval_metric, cls_metric, bbox_metric
-    for child_metric in [Retina_eval_metric,Retina_cls_metric,Retina_bbox_metric]:
+    for child_metric in [Retina_eval_metric,Retina_toal_eval_metric,Retina_cls_metric,Retina_bbox_metric]:
         eval_metrics.add(child_metric)
     # callback
     batch_end_callback = callback.Speedometer(train_data.batch_size, frequent=args.frequent)

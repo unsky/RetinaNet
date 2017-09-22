@@ -63,11 +63,13 @@ def get_rpn_batch(roidb, cfg):
     return data, label
 
 
-def assign_anchor(feat_shape_p3,feat_shape_p4,feat_shape_p5,
+def assign_anchor(feat_shape_p3,feat_shape_p4,feat_shape_p5,feat_shape_p6,
                   gt_boxes, im_info, cfg,
                   feat_stride_p3=4,scales_p3=(8,), ratios_p3=(0.75, 1, 1.5),
                   feat_stride_p4=8,scales_p4=(8,), ratios_p4=(0.75, 1, 1.5),
-                  feat_stride_p5=16,scales_p5=(8,), ratios_p5=(0.75, 1, 1.5),allowed_border=1):
+                  feat_stride_p5=16,scales_p5=(8,), ratios_p5=(0.75, 1, 1.5),
+                  feat_stride_p6=4,scales_p6=(8,), ratios_p6=(0.75, 1, 1.5),
+                  allowed_border=1):
     
     """
     assign ground truth boxes to anchor positions
@@ -85,8 +87,8 @@ def assign_anchor(feat_shape_p3,feat_shape_p4,feat_shape_p5,
     'bbox_outside_weight': used to normalize the bbox_loss, all weights sums to RPN_POSITIVE_WEIGHT
     """
  
-    feat_shape = [feat_shape_p3,feat_shape_p4,feat_shape_p5]
-    feat_stride=[4,8,16]
+    feat_shape = [feat_shape_p3,feat_shape_p4,feat_shape_p5,feat_shape_p6]
+    feat_stride=[8,16,32,64]
     scales=(8,10,12)
     ratios=(0.5, 1,2)
 
@@ -172,7 +174,14 @@ def assign_anchor(feat_shape_p3,feat_shape_p4,feat_shape_p5,
             # labels[disable_inds] = -1
         else:
             labels[:] = 0
+        # # print anchors[labels>0]
 
+        # # a = anchors[labels>0].astype(np.int)
+        # # np.savetxt('aa.txt',a,fmt="%d %d %d %d")
+
+
+        # if len(anchors[labels>0])!=0:
+        #     aaa
         bbox_targets = np.zeros((total_anchors, 4), dtype=np.float32)
         if gt_boxes.size > 0:
             bbox_targets[:] = bbox_transform(anchors, gt_boxes[argmax_overlaps, :4])
@@ -191,15 +200,15 @@ def assign_anchor(feat_shape_p3,feat_shape_p4,feat_shape_p5,
     
         bbox_targets = bbox_targets.reshape((1, feat_height, feat_width, A * 4)).transpose(0, 3, 1, 2)
         bbox_weights = bbox_weights.reshape((1, feat_height, feat_width, A * 4)).transpose((0, 3, 1, 2))
+
+
         labels_list.append(labels)
         bbox_targets_list.append(bbox_targets)
         bbox_weights_list.append(bbox_weights)
 
-
-
-    if len(feat_shape) == 3:
-          label = {'label/p3': labels_list[0], 'label/p4': labels_list[1], 'label/p5': labels_list[2],
-           'bbox_target/p3': bbox_targets_list[0], 'bbox_target/p4': bbox_targets_list[1], 'bbox_target/p5': bbox_targets_list[2],
-           'bbox_weight/p3': bbox_weights_list[0], 'bbox_weight/p4': bbox_weights_list[1], 'bbox_weight/p5': bbox_weights_list[2]}
+    if len(feat_shape) == 4:
+          label = {'label/p3': labels_list[0],'label/p4': labels_list[1], 'label/p5': labels_list[2], 'label/p6': labels_list[3],
+           'bbox_target/p3': bbox_targets_list[0], 'bbox_target/p4': bbox_targets_list[1], 'bbox_target/p5': bbox_targets_list[2], 'bbox_target/p6': bbox_targets_list[3],
+           'bbox_weight/p3': bbox_weights_list[0], 'bbox_weight/p4': bbox_weights_list[1], 'bbox_weight/p5': bbox_weights_list[2], 'bbox_weight/p6': bbox_weights_list[3]}
  
     return label

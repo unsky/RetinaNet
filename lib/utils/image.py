@@ -23,15 +23,18 @@ def get_image(roidb, config):
     for i in range(num_images):
         roi_rec = roidb[i]
         assert os.path.exists(roi_rec['image']), '%s does not exist'.format(roi_rec['image'])
-        im = cv2.imread(roi_rec['image'], 1|128)
+        print roi_rec['image']
+        im = cv2.imread(roi_rec['image'])
         if roidb[i]['flipped']:
             im = im[:, ::-1, :]
+     #   print "aaa",im[:,:,0]
         new_rec = roi_rec.copy()
         scale_ind = random.randrange(len(config.SCALES))
         target_size = config.SCALES[scale_ind][0]
         max_size = config.SCALES[scale_ind][1]
         im, im_scale = resize(im, target_size, max_size, stride=config.network.IMAGE_STRIDE)
         im_tensor = transform(im, config.network.PIXEL_MEANS)
+      #  print im_tensor
         processed_ims.append(im_tensor)
         im_info = [im_tensor.shape[2], im_tensor.shape[3], im_scale]
         new_rec['boxes'] = clip_boxes(np.round(roi_rec['boxes'].copy() * im_scale), im_info[:2])
@@ -95,6 +98,7 @@ def resize(im, target_size, max_size, stride=0, interpolation = cv2.INTER_LINEAR
     if np.round(im_scale * im_size_max) > max_size:
         im_scale = float(max_size) / float(im_size_max)
     im = cv2.resize(im, None, None, fx=im_scale, fy=im_scale, interpolation=interpolation)
+
 
     if stride == 0:
         return im, im_scale

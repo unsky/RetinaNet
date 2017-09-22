@@ -1,2 +1,3 @@
 
 import retina_resnet_101
+import retina_resnet_50

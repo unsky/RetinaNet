@@ -141,6 +141,7 @@ class kitti(IMDB):
         filename = os.path.join(self._devkit_path, 'training/label_2', index + '.txt')
         imagename = os.path.join(self._devkit_path,'training/image_2',index+'.png')
         img = cv2.imread(imagename)
+        print imagename
         width = img.shape[0]
         height = img.shape[1]
         f = open(filename)
