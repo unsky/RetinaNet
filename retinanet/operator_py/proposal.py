@@ -22,8 +22,7 @@ class ProposalOperator(mx.operator.CustomOp):
         self._feat_stride = feat_stride
         self._scales = np.fromstring(scales[1:-1], dtype=float, sep=',')
         self._ratios = np.fromstring(ratios[1:-1], dtype=float, sep=',')
-        self._anchors = generate_anchors(base_size=self._feat_stride, scales=self._scales, ratios=self._ratios)
-        self._num_anchors = self._anchors.shape[0]
+        self._num_anchors = len(self._scales)*len(self._ratios)
         self._output_score = output_score
         self._rpn_pre_nms_top_n = rpn_pre_nms_top_n
         self._rpn_post_nms_top_n = rpn_post_nms_top_n
@@ -37,10 +36,8 @@ class ProposalOperator(mx.operator.CustomOp):
 
     def forward(self, is_train, req, in_data, out_data, aux):
         nms = gpu_nms_wrapper(self._threshold, in_data[0].context.device_id)
-        # print "#######################"
-        
-        # print in_data[3].shape[0],in_data[3].shape[1],in_data[3].shape[2],in_data[3].shape[3]
-        # print "------------------------------"
+     
+    
         batch_size = in_data[0].shape[0]
         if batch_size > 1:
             raise ValueError("Sorry, multiple images each device is not implemented")
@@ -56,78 +53,89 @@ class ProposalOperator(mx.operator.CustomOp):
         # take after_nms_topN proposals after NMS
         # return the top proposals (-> RoIs top, scores top)
 
+        cls_prob_dict = {
+            'stride128': in_data[3],
+            'stride64': in_data[2],
+            'stride32': in_data[1],
+            'stride16': in_data[0],
+         
+       
+        }
+        bbox_pred_dict = {
+            'stride128': in_data[7],
+            'stride64': in_data[6],
+            'stride32': in_data[5],
+            'stride16': in_data[4],
+        }
         pre_nms_topN = self._rpn_pre_nms_top_n
         post_nms_topN = self._rpn_post_nms_top_n
         min_size = self._rpn_min_size
 
-        # the first set of anchors are background probabilities
-        # keep the second part
-        scores = in_data[0].asnumpy()[:, self._num_anchors:, :, :]
-        bbox_deltas = in_data[1].asnumpy()
+        proposal_list = []
+        score_list = []
 
-        im_info = in_data[2].asnumpy()[0, :]
+        for s in self._feat_stride:
+            stride = int(s)
+            sub_anchors = generate_anchors(base_size=stride, scales=self._scales, ratios=self._ratios)
+            scores =  cls_prob_dict['stride' + str(s)].asnumpy()[:, self._num_anchors*20:, :, :]
+            bbox_deltas = bbox_pred_dict['stride' + str(s)].asnumpy()
+            im_info = in_data[-1].asnumpy()[0, :]
+            # 1. Generate proposals from bbox_deltas and shifted anchors
+            # use real image size instead of padded feature map sizes
+            height, width = int(im_info[0] / stride), int(im_info[1] / stride)
 
-        if DEBUG:
-            print 'im_size: ({}, {})'.format(im_info[0], im_info[1])
-            print 'scale: {}'.format(im_info[2])
+            # Enumerate all shifts
+            shift_x = np.arange(0, width) * stride
+            shift_y = np.arange(0, height) * stride
+            shift_x, shift_y = np.meshgrid(shift_x, shift_y)
+            shifts = np.vstack((shift_x.ravel(), shift_y.ravel(), shift_x.ravel(), shift_y.ravel())).transpose()
 
-        # 1. Generate proposals from bbox_deltas and shifted anchors
-        # use real image size instead of padded feature map sizes
-       # height, width = int(im_info[0] / self._feat_stride), int(im_info[1] / self._feat_stride)
-        height = in_data[3].shape[2]
-        width =in_data[3].shape[3]
- 
+            # Enumerate all shifted anchors:
+            #
+            # add A anchors (1, A, 4) to
+            # cell K shifts (K, 1, 4) to get
+            # shift anchors (K, A, 4)
+            # reshape to (K*A, 4) shifted anchors
+            A = self._num_anchors
+            K = shifts.shape[0]
+            anchors = sub_anchors.reshape((1, A, 4)) + shifts.reshape((1, K, 4)).transpose((1, 0, 2))
+            anchors = anchors.reshape((K * A, 4))
 
-        if DEBUG:
-            print 'score map size: {}'.format(scores.shape)
-            print "resudial: {}".format((scores.shape[2] - height, scores.shape[3] - width))
+            # Transpose and reshape predicted bbox transformations to get them
+            # into the same order as the anchors:
+            #
+            # bbox deltas will be (1, 4 * A, H, W) format
+            # transpose to (1, H, W, 4 * A)
+            # reshape to (1 * H * W * A, 4) where rows are ordered by (h, w, a)
+            # in slowest to fastest order
+            bbox_deltas = self._clip_pad(bbox_deltas, (height, width))
+            bbox_deltas = bbox_deltas.transpose((0, 2, 3, 1)).reshape((-1, 4))
 
-        # Enumerate all shifts
-        shift_x = np.arange(0, width) * self._feat_stride
-        shift_y = np.arange(0, height) * self._feat_stride
-        shift_x, shift_y = np.meshgrid(shift_x, shift_y)
-        shifts = np.vstack((shift_x.ravel(), shift_y.ravel(), shift_x.ravel(), shift_y.ravel())).transpose()
+            # Same story for the scores:
+            #
+            # scores are (1, A, H, W) format
+            # transpose to (1, H, W, A)
+            # reshape to (1 * H * W * A, 1) where rows are ordered by (h, w, a)
+            scores = self._clip_pad(scores, (height, width))
+            scores = scores.transpose((0, 2, 3, 1)).reshape((-1, 1))
 
-        # Enumerate all shifted anchors:
-        #
-        # add A anchors (1, A, 4) to
-        # cell K shifts (K, 1, 4) to get
-        # shift anchors (K, A, 4)
-        # reshape to (K*A, 4) shifted anchors
-        A = self._num_anchors
-        K = shifts.shape[0]
-        anchors = self._anchors.reshape((1, A, 4)) + shifts.reshape((1, K, 4)).transpose((1, 0, 2))
-        anchors = anchors.reshape((K * A, 4))
+            # Convert anchors into proposals via bbox transformations
+            proposals = bbox_pred(anchors, bbox_deltas)
 
-        # Transpose and reshape predicted bbox transformations to get them
-        # into the same order as the anchors:
-        #
-        # bbox deltas will be (1, 4 * A, H, W) format
-        # transpose to (1, H, W, 4 * A)
-        # reshape to (1 * H * W * A, 4) where rows are ordered by (h, w, a)
-        # in slowest to fastest order
-  
-        bbox_deltas = self._clip_pad(bbox_deltas, (height, width))
-        bbox_deltas = bbox_deltas.transpose((0, 2, 3, 1)).reshape((-1, 4))
+            # 2. clip predicted boxes to image
+            proposals = clip_boxes(proposals, im_info[:2])
 
-        # Same story for the scores:
-        #
-        # scores are (1, A, H, W) format
-        # transpose to (1, H, W, A)
-        # reshape to (1 * H * W * A, 1) where rows are ordered by (h, w, a)
-        scores = self._clip_pad(scores, (height, width))
-        scores = scores.transpose((0, 2, 3, 1)).reshape((-1, 1))
-        # Convert anchors into proposals via bbox transformations
-        proposals = bbox_pred(anchors, bbox_deltas)
-        
-        # 2. clip predicted boxes to image
-        proposals = clip_boxes(proposals, im_info[:2])
+            # 3. remove predicted boxes with either height or width < threshold
+            # (NOTE: convert min_size to input image scale stored in im_info[2])
+            keep = self._filter_boxes(proposals, min_size * im_info[2])
+            proposals = proposals[keep, :]
+            scores = scores[keep]
 
-        # 3. remove predicted boxes with either height or width < threshold
-        # (NOTE: convert min_size to input image scale stored in im_info[2])
-        keep = self._filter_boxes(proposals, min_size * im_info[2])
-        proposals = proposals[keep, :]
-        scores = scores[keep]
+            proposal_list.append(proposals)
+            score_list.append(scores)
+
+        proposals = np.vstack(proposal_list)
+        scores = np.vstack(score_list)
 
         # 4. sort all (proposal, score) pairs by score from highest to lowest
         # 5. take top pre_nms_topN (e.g. 6000)
@@ -156,15 +164,14 @@ class ProposalOperator(mx.operator.CustomOp):
         # batch inds are 0
         batch_inds = np.zeros((proposals.shape[0], 1), dtype=np.float32)
         blob = np.hstack((batch_inds, proposals.astype(np.float32, copy=False)))
+        # if is_train:
         self.assign(out_data[0], req[0], blob)
-
         if self._output_score:
             self.assign(out_data[1], req[1], scores.astype(np.float32, copy=False))
 
     def backward(self, req, out_grad, in_data, out_data, in_grad, aux):
-        self.assign(in_grad[0], req[0], 0)
-        self.assign(in_grad[1], req[1], 0)
-        self.assign(in_grad[2], req[2], 0)
+        for i in range(len(in_grad)):
+            self.assign(in_grad[i], req[i], 0)
 
     @staticmethod
     def _filter_boxes(boxes, min_size):
@@ -196,7 +203,8 @@ class ProposalProp(mx.operator.CustomOpProp):
     def __init__(self, feat_stride='16', scales='(8, 16, 32)', ratios='(0.5, 1, 2)', output_score='True',
                  rpn_pre_nms_top_n='6000', rpn_post_nms_top_n='300', threshold='0.3', rpn_min_size='16'):
         super(ProposalProp, self).__init__(need_top_grad=False)
-        self._feat_stride = int(feat_stride)
+        self._feat_stride = np.fromstring(feat_stride[1:-1], dtype=int, sep=',')
+
         self._scales = scales
         self._ratios = ratios
         self._output_score = strtobool(output_score)
@@ -206,7 +214,9 @@ class ProposalProp(mx.operator.CustomOpProp):
         self._rpn_min_size = int(rpn_min_size)
 
     def list_arguments(self):
-        return ['cls_prob', 'bbox_pred', 'im_info','px_shape']
+        return [ 'cls_prob_p4','cls_prob_p5','cls_prob_p6','cls_prob_p7',
+        'bbox_pred_p4', 'bbox_pred_p5','bbox_pred_p6','bbox_pred_p7',   
+        'im_info']
 
     def list_outputs(self):
         if self._output_score:
@@ -215,23 +225,19 @@ class ProposalProp(mx.operator.CustomOpProp):
             return ['output']
 
     def infer_shape(self, in_shape):
-        cls_prob_shape = in_shape[0]
-        bbox_pred_shape = in_shape[1]
-        assert cls_prob_shape[0] == bbox_pred_shape[0], 'ROI number does not equal in cls and reg'
-        px_shape_shape = in_shape[3]
-        batch_size = cls_prob_shape[0]
-        im_info_shape = (batch_size, 3)
+
         output_shape = (self._rpn_post_nms_top_n, 5)
         score_shape = (self._rpn_post_nms_top_n, 1)
 
         if self._output_score:
-            return [cls_prob_shape, bbox_pred_shape, im_info_shape,px_shape_shape], [output_shape, score_shape]
+            return [in_shape[0],in_shape[1],in_shape[2],in_shape[3],
+                    in_shape[4],in_shape[5],in_shape[6],in_shape[7],in_shape[8]], [output_shape, score_shape]
         else:
-            return [cls_prob_shape, bbox_pred_shape, im_info_shape,px_shape_shape], [output_shape]
+            return [in_shape[0],in_shape[1],in_shape[2],in_shape[3],in_shape[4],
+                    in_shape[5],in_shape[6],in_shape[7],in_shape[8]], [output_shape]
 
     def create_operator(self, ctx, shapes, dtypes):
-        return ProposalOperator(self._feat_stride, self._scales, self._ratios, self._output_score,
-                                self._rpn_pre_nms_top_n, self._rpn_post_nms_top_n, self._threshold, self._rpn_min_size)
+        return ProposalOperator(self._feat_stride, self._scales, self._ratios, self._output_score,self._rpn_pre_nms_top_n, self._rpn_post_nms_top_n, self._threshold, self._rpn_min_size)
 
     def declare_backward_dependency(self, out_grad, in_data, out_data):
         return []

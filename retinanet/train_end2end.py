@@ -6,7 +6,6 @@
 # Modified by Yuwen Xiong
 # --------------------------------------------------------														  
 import _init_paths
-
 import cv2
 import time
 import argparse
@@ -52,37 +51,40 @@ from utils.lr_scheduler import WarmupMultiFactorScheduler
 def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch, lr, lr_step):
     logger, final_output_path = create_logger(config.output_path, args.cfg, config.dataset.image_set)
     prefix = os.path.join(final_output_path, prefix)
-
     # load symbol
     shutil.copy2(os.path.join(curr_path, 'symbols', config.symbol + '.py'), final_output_path)
     sym_instance = eval(config.symbol + '.' + config.symbol)()   
 
     sym = sym_instance.get_retina_symbol(config, is_train=True)
     feat_sym = []
-    feat_sym_p3 = sym.get_internals()['cls_score/p3_output']    
-    feat_sym_p4 = sym.get_internals()['cls_score/p4_output']
-    feat_sym_p5 = sym.get_internals()['cls_score/p5_output']
-    feat_sym_p6 = sym.get_internals()['cls_score/p6_output'] 
-    feat_sym.append(feat_sym_p3)
+     
+    feat_sym_p4 = sym.get_internals()['box_pred/p4_output']
+    feat_sym_p5 = sym.get_internals()['box_pred/p5_output']
+    feat_sym_p6 = sym.get_internals()['box_pred/p6_output'] 
+    feat_sym_p7 = sym.get_internals()['box_pred/p7_output']   
+
     feat_sym.append(feat_sym_p4)
     feat_sym.append(feat_sym_p5)
     feat_sym.append(feat_sym_p6)
+    feat_sym.append(feat_sym_p7)
     #######
     feat_stride = []
-    feat_stride.append(config.network.p3_RPN_FEAT_STRIDE)
     feat_stride.append(config.network.p4_RPN_FEAT_STRIDE)
     feat_stride.append(config.network.p5_RPN_FEAT_STRIDE)
     feat_stride.append(config.network.p6_RPN_FEAT_STRIDE)
+    feat_stride.append(config.network.p7_RPN_FEAT_STRIDE)
     anchor_scales = []
-    anchor_scales.append(config.network.p3_ANCHOR_SCALES)
+   
     anchor_scales.append(config.network.p4_ANCHOR_SCALES)
     anchor_scales.append(config.network.p5_ANCHOR_SCALES)
     anchor_scales.append(config.network.p6_ANCHOR_SCALES)
+    anchor_scales.append(config.network.p7_ANCHOR_SCALES)
     anchor_ratios = []
-    anchor_ratios.append(config.network.p3_ANCHOR_RATIOS)
+   
     anchor_ratios.append(config.network.p4_ANCHOR_RATIOS)
     anchor_ratios.append(config.network.p5_ANCHOR_RATIOS)
     anchor_ratios.append(config.network.p6_ANCHOR_RATIOS)
+    anchor_ratios.append(config.network.p7_ANCHOR_RATIOS)
     #############
 
 
@@ -100,10 +102,11 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch, lr, 
                             flip=config.TRAIN.FLIP)
               for image_set in image_sets]
     roidb = merge_roidb(roidbs)
+
   
 
     roidb = filter_roidb(roidb, config)
- 
+
 
     # load training data
     train_data = AnchorLoader(feat_sym,feat_stride,anchor_scales,anchor_ratios, 
@@ -129,8 +132,7 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch, lr, 
         sym_instance.init_weight(config, arg_params, aux_params)
 
     # check parameter shapes
-    sym_instance.check_parameter_shapes(arg_params, aux_params, data_shape_dict)
-
+    # sym_instance.check_parameter_shapes(arg_params, aux_params, data_shape_dict)
     # create solver
     fixed_param_prefix = config.network.FIXED_PARAMS
     data_names = [k[0] for k in train_data.provide_data_single]
@@ -145,14 +147,13 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch, lr, 
 
     # decide training params
     # metric
-    Retina_eval_metric = metric.RetinaAccMetric()
     Retina_toal_eval_metric = metric.RetinaToalAccMetric()
     Retina_cls_metric = metric.RetinaFocalLossMetric()
     Retina_bbox_metric = metric.RetinaL1LossMetric()
 
     eval_metrics = mx.metric.CompositeEvalMetric()
     # rpn_eval_metric, rpn_cls_metric, rpn_bbox_metric, eval_metric, cls_metric, bbox_metric
-    for child_metric in [Retina_eval_metric,Retina_toal_eval_metric,Retina_cls_metric,Retina_bbox_metric]:
+    for child_metric in [Retina_toal_eval_metric,Retina_cls_metric,Retina_bbox_metric]:
         eval_metrics.add(child_metric)
     # callback
     batch_end_callback = callback.Speedometer(train_data.batch_size, frequent=args.frequent)
@@ -170,20 +171,24 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch, lr, 
     print('lr', lr, 'lr_epoch_diff', lr_epoch_diff, 'lr_iters', lr_iters)
     lr_scheduler = WarmupMultiFactorScheduler(lr_iters, lr_factor, config.TRAIN.warmup, config.TRAIN.warmup_lr, config.TRAIN.warmup_step)
     # optimizer
-    optimizer_params = {'momentum': config.TRAIN.momentum,
-                        'wd': config.TRAIN.wd,
+    optimizer_params = {
                         'learning_rate': lr,
-                        'lr_scheduler': lr_scheduler,
-                        'rescale_grad': 1.0,
-                        'clip_gradient': None}
+                        'wd':0.0001,
+                         'clip_gradient':0.001,
+                 
+                        }
 
     if not isinstance(train_data, PrefetchingIter):
         train_data = PrefetchingIter(train_data)
     # train
-    print "#########################################train#######################################"
+    initializer = mx.init.MSRAPrelu(factor_type='out',slope = 0.3)
+ #   adam = mx.optimizer.Adam(learning_rate=0.001, beta1=0.9, beta2=0.999, epsilon=1e-14)
+    #optimizer_params=optimizer_params, 
+
+    print "-----------------------train--------------------------------"
     mod.fit(train_data, eval_metric=eval_metrics, epoch_end_callback=epoch_end_callback,
             batch_end_callback=batch_end_callback, kvstore=config.default.kvstore,
-            optimizer='sgd', optimizer_params=optimizer_params,
+            optimizer='adam',optimizer_params=optimizer_params,  initializer = initializer,
             arg_params=arg_params, aux_params=aux_params, begin_epoch=begin_epoch, num_epoch=end_epoch)
 
 

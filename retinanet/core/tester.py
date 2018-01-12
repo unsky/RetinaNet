@@ -129,27 +129,22 @@ def im_detect(predictor, data_batch, data_names, scales, cfg):
     scores_all = []
     pred_boxes_all = []
     for output, data_dict, scale in zip(output_all, data_dict_all, scales):
-        
-        rois = output['rois_output'].asnumpy()[:, 1:]
 
-
+        rois = output['restored_rois_rois'].asnumpy()
         # save output
-        scores = output['score_output'].asnumpy()[0]
-        
-
-        # post processing
-       # pred_boxes = bbox_pred(rois, bbox_deltas)
-      #  pred_boxes = clip_boxes(pred_boxes, im_shape[-2:])
+        scores = output['restored_rois_cls_score'].asnumpy()
+       
 
         # we used scaled image & roi to train, so it is necessary to transform them back
-        pred_boxes = rois / scale
-
+        scale = output['blockgrad0_output'].asnumpy()[0][2]
+     
+        pred_boxes = rois /scale
         scores_all.append(scores)
         pred_boxes_all.append(pred_boxes)
     return scores_all, pred_boxes_all, data_dict_all
 
 
-def pred_eval(predictor, test_data, imdb, cfg, vis=False, thresh=1e-3, logger=None, ignore_cache=True):
+def pred_eval(predictor, test_data, imdb, cfg, vis=False, thresh=0.0001, logger=None, ignore_cache=True):
     """
     wrapper for calculating offline validation for faster data analysis
     in this example, all threshold are set by hand
@@ -202,9 +197,12 @@ def pred_eval(predictor, test_data, imdb, cfg, vis=False, thresh=1e-3, logger=No
         t = time.time()
         for delta, (scores, boxes, data_dict) in enumerate(zip(scores_all, boxes_all, data_dict_all)):
             for j in range(1, imdb.num_classes):
-                indexes = np.where(scores[:, j] > thresh)[0]
-                cls_scores = scores[indexes, j, np.newaxis]
-                cls_boxes = boxes[indexes, 4:8] if cfg.CLASS_AGNOSTIC else boxes[indexes, j * 4:(j + 1) * 4]
+                indexes = np.where(scores[:, j-1] > thresh)[0]
+                cls_scores = scores[indexes, j-1, np.newaxis]
+                ind = np.where(cls_scores>thresh)[0]
+  
+                cls_boxes = boxes[indexes, :] 
+                cls_boxes =  boxes[ind, :] 
                 cls_dets = np.hstack((cls_boxes, cls_scores))
                 keep = nms(cls_dets)
                 all_boxes[j][idx+delta] = cls_dets[keep, :]
@@ -213,15 +211,14 @@ def pred_eval(predictor, test_data, imdb, cfg, vis=False, thresh=1e-3, logger=No
             if max_per_image > 0:
                 image_scores = np.hstack([all_boxes[j][idx+delta][:, -1]
                                           for j in range(1, imdb.num_classes)])
-                max_per_image=0
                 if len(image_scores) > max_per_image:
                     image_thresh = np.sort(image_scores)[-max_per_image]
-                    image_thresh = 0.5
+            
                     for j in range(1, imdb.num_classes):
                         keep = np.where(all_boxes[j][idx+delta][:, -1] >= image_thresh)[0]
                         all_boxes[j][idx+delta] = all_boxes[j][idx+delta][keep, :]
-                    print len(all_boxes)
-
+        
+            vis = False
             if vis:
                 boxes_this_image = [[]] + [all_boxes[j][idx+delta] for j in range(1, imdb.num_classes)]
                 vis_all_detection(data_dict['data'].asnumpy(), boxes_this_image, imdb.classes, scales[delta], cfg)
@@ -245,7 +242,7 @@ def pred_eval(predictor, test_data, imdb, cfg, vis=False, thresh=1e-3, logger=No
         logger.info('evaluate detections: \n{}'.format(info_str))
 
 
-def vis_all_detection(im_array, detections, class_names, scale, cfg, threshold=1e-3):
+def vis_all_detection(im_array, detections, class_names, scale, cfg, threshold=0.0):
     """
     visualize all detections in one image
     :param im_array: [b=1 c h w] in rgb
@@ -254,7 +251,10 @@ def vis_all_detection(im_array, detections, class_names, scale, cfg, threshold=1
     :param scale: visualize the scaled image
     :return:
     """
+    import matplotlib  
+    matplotlib.use('Agg') 
     import matplotlib.pyplot as plt
+    from matplotlib.pyplot import savefig  
     import random
     im = image.transform_inverse(im_array, cfg.network.PIXEL_MEANS)
     plt.imshow(im)
@@ -277,6 +277,10 @@ def vis_all_detection(im_array, detections, class_names, scale, cfg, threshold=1
                            '{:s} {:.3f}'.format(name, score),
                            bbox=dict(facecolor=color, alpha=0.5), fontsize=12, color='white')
     plt.show()
+    name = np.mean(im)
+    savefig ('vis/'+str(name)+'.png')
+    plt.clf()
+    plt.cla()
 
 
 def draw_all_detection(im_array, detections, class_names, scale, cfg, threshold=1e-1):

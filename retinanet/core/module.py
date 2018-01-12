@@ -229,7 +229,7 @@ class Module(BaseModule):
         return (self._arg_params, self._aux_params)
 
     def init_params(self, initializer=Uniform(0.01), arg_params=None, aux_params=None,
-                    allow_missing=False, force_init=False):
+                    allow_missing=False, force_init=False,allow_extra=False):
         """Initialize the parameters and auxiliary states.
 
         Parameters
@@ -286,7 +286,7 @@ class Module(BaseModule):
         # copy the initialized parameters to devices
         self._exec_group.set_params(self._arg_params, self._aux_params)
 
-    def set_params(self, arg_params, aux_params, allow_missing=False, force_init=True):
+    def set_params(self, arg_params, aux_params, allow_missing=False, force_init=True,allow_extra=False):
         """Assign parameter and aux state values.
 
         Parameters
@@ -778,10 +778,11 @@ class MutableModule(BaseModule):
         return self._curr_module.get_params()
 
     def init_params(self, initializer=Uniform(0.01), arg_params=None, aux_params=None,
-                    allow_missing=False, force_init=False):
+                    allow_missing=False, force_init=False,allow_extra=False):
         if self.params_initialized and not force_init:
             return
         assert self.binded, 'call bind before initializing the parameters'
+       # print self._curr_model
         self._curr_module.init_params(initializer=initializer, arg_params=arg_params,
                                       aux_params=aux_params, allow_missing=allow_missing,
                                       force_init=force_init)
@@ -875,7 +876,7 @@ class MutableModule(BaseModule):
             optimizer='sgd', optimizer_params=(('learning_rate', 0.01),),
             eval_end_callback=None,
             eval_batch_end_callback=None, initializer=Uniform(0.01),
-            arg_params=None, aux_params=None, allow_missing=False,
+            arg_params=None, aux_params=None, allow_missing=True,
             force_rebind=False, force_init=False, begin_epoch=0, num_epoch=None,
             validation_metric=None, monitor=None, prefix=None):
         """Train the module parameters.

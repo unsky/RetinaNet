@@ -33,7 +33,8 @@ def test_rcnn(cfg, dataset, image_set, root_path, dataset_path,
     # load symbol and testing data
     if has_rpn:
         sym_instance = eval(cfg.symbol + '.' + cfg.symbol)()
-        sym = sym_instance.get_symbol(cfg, is_train=False)
+     
+        sym = sym_instance.get_retina_symbol(cfg, is_train=False)
         imdb = eval(dataset)(image_set, root_path, dataset_path, result_path=output_path)
         roidb = imdb.gt_roidb()
     else:

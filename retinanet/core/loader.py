@@ -137,10 +137,12 @@ class AnchorLoader(mx.io.DataIter):
         super(AnchorLoader, self).__init__()
 
         # save parameters as properties
-        self.feat_sym_p3 = feat_sym[0]
-        self.feat_sym_p4 = feat_sym[1]
-        self.feat_sym_p5 = feat_sym[2]
-        self.feat_sym_p6 = feat_sym[3]
+        
+
+        self.feat_sym_p4 = feat_sym[0]
+        self.feat_sym_p5 = feat_sym[1]
+        self.feat_sym_p6 = feat_sym[2]
+        self.feat_sym_p7 = feat_sym[3]
         self.roidb = roidb
         self.cfg = cfg
         self.batch_size = batch_size
@@ -150,23 +152,25 @@ class AnchorLoader(mx.io.DataIter):
             self.ctx = [mx.cpu()]
         self.work_load_list = work_load_list
 
-        self.feat_stride_p3 = feat_stride[0]
-        self.anchor_scales_p3= anchor_scales[0]
-        self.anchor_ratios_p3 = anchor_ratios[0]
+  
 
-        self.feat_stride_p4 = feat_stride[1]
-        self.anchor_scales_p4 = anchor_scales[1]
-        self.anchor_ratios_p4 = anchor_ratios[1]
 
-        self.feat_stride_p5 = feat_stride[2]
-        self.anchor_scales_p5 = anchor_scales[2]
-        self.anchor_ratios_p5 = anchor_ratios[2]        
+        self.feat_stride_p4 = feat_stride[0]
+        self.anchor_scales_p4 = anchor_scales[0]
+        self.anchor_ratios_p4 = anchor_ratios[0]        
       
 
-        self.feat_stride_p6 = feat_stride[3]
-        self.anchor_scales_p6 = anchor_scales[3]
-        self.anchor_ratios_p6 = anchor_ratios[3]        
+        self.feat_stride_p5 = feat_stride[1]
+        self.anchor_scales_p5 = anchor_scales[1]
+        self.anchor_ratios_p5 = anchor_ratios[1]        
       
+        self.feat_stride_p6 = feat_stride[2]
+        self.anchor_scales_p6 = anchor_scales[2]
+        self.anchor_ratios_p6 = anchor_ratios[2]  
+        
+        self.feat_stride_p7 = feat_stride[3]
+        self.anchor_scales_p7= anchor_scales[3]
+        self.anchor_ratios_p7 = anchor_ratios[3]
 
         self.allowed_border = allowed_border
         self.aspect_grouping = aspect_grouping
@@ -180,7 +184,7 @@ class AnchorLoader(mx.io.DataIter):
              self.data_name = ['data']
         else:
             self.data_name = ['data']
-        self.label_name = ['label/p3','label/p4','label/p5','label/p6','bbox_target/p3','bbox_target/p4','bbox_target/p5','bbox_target/p6','bbox_weight/p3','bbox_weight/p4','bbox_weight/p5','bbox_weight/p6']
+        self.label_name = ['label','bbox_target','bbox_weight']
 
         # status variable for synchronization between get_data and get_label
         self.cur = 0
@@ -258,21 +262,25 @@ class AnchorLoader(mx.io.DataIter):
         max_shapes = dict(max_data_shape + max_label_shape)
         input_batch_size = max_shapes['data'][0]
         im_info = [[max_shapes['data'][2], max_shapes['data'][3], 1.0]]
-        
-        _, feat_shape_p3, _ = self.feat_sym_p3.infer_shape(**max_shapes)        
+               
         _, feat_shape_p4, _ = self.feat_sym_p4.infer_shape(**max_shapes)
         _, feat_shape_p5, _ = self.feat_sym_p5.infer_shape(**max_shapes)
         _, feat_shape_p6, _ = self.feat_sym_p6.infer_shape(**max_shapes) 
+        _, feat_shape_p7, _ = self.feat_sym_p7.infer_shape(**max_shapes)   
         
 
-        label = assign_anchor(feat_shape_p3[0],feat_shape_p4[0],feat_shape_p5[0],feat_shape_p6[0],np.zeros((0, 5)), im_info, self.cfg,
-                              self.feat_stride_p3, self.anchor_scales_p3, self.anchor_ratios_p3,                              
+        label = assign_anchor(feat_shape_p4[0],feat_shape_p5[0],feat_shape_p6[0],feat_shape_p7[0],np.zeros((0, 5)), im_info, self.cfg,                             
                               self.feat_stride_p4, self.anchor_scales_p4, self.anchor_ratios_p4, 
                               self.feat_stride_p5, self.anchor_scales_p5, self.anchor_ratios_p5,
                               self.feat_stride_p6, self.anchor_scales_p6, self.anchor_ratios_p6, 
+                              self.feat_stride_p7, self.anchor_scales_p7, self.anchor_ratios_p7,  
                               self.allowed_border)
         label = [label[k] for k in self.label_name]
+     
         label_shape = [(k, tuple([input_batch_size] + list(v.shape[1:]))) for k, v in zip(self.label_name, label)]
+
+        
+        label_shape =  [('label', (1,1,26257)), ('bbox_target', (label[1].shape[0],label[1].shape[1],label[1].shape[2])), ('bbox_weight', (label[2].shape[0],label[2].shape[1],label[2].shape[2]))]
         return max_data_shape, label_shape
 
     def get_batch(self):
@@ -309,24 +317,27 @@ class AnchorLoader(mx.io.DataIter):
             # infer label shape
             data_shape = {k: v.shape for k, v in data.items()}
             del data_shape['im_info']
-            _, feat_shape_p3, _ = self.feat_sym_p3.infer_shape(**data_shape)
-            feat_shape_p3 = [int(i) for i in feat_shape_p3[0]]            
+ 
+
+          
             _, feat_shape_p4, _ = self.feat_sym_p4.infer_shape(**data_shape)
             feat_shape_p4 = [int(i) for i in feat_shape_p4[0]]
             _, feat_shape_p5, _ = self.feat_sym_p5.infer_shape(**data_shape)
             feat_shape_p5 = [int(i) for i in feat_shape_p5[0]]
             _, feat_shape_p6, _ = self.feat_sym_p6.infer_shape(**data_shape)
             feat_shape_p6 = [int(i) for i in feat_shape_p6[0]]  
+            _, feat_shape_p7, _ = self.feat_sym_p7.infer_shape(**data_shape)
+            feat_shape_p7 = [int(i) for i in feat_shape_p7[0]] 
 
             # add gt_boxes to data for e2e
             data['gt_boxes'] = label['gt_boxes'][np.newaxis, :, :]
 
             # assign anchor for label
-            label = assign_anchor(feat_shape_p3,feat_shape_p4,feat_shape_p5,feat_shape_p6,label['gt_boxes'], data['im_info'], self.cfg,
-                                  self.feat_stride_p3, self.anchor_scales_p3,self.anchor_ratios_p3,           
+            label = assign_anchor(feat_shape_p4,feat_shape_p5,feat_shape_p6,feat_shape_p7,label['gt_boxes'], data['im_info'], self.cfg,         
                                   self.feat_stride_p4, self.anchor_scales_p4,self.anchor_ratios_p4,
                                   self.feat_stride_p5, self.anchor_scales_p5,self.anchor_ratios_p5,
                                   self.feat_stride_p6, self.anchor_scales_p6,self.anchor_ratios_p6, 
+                                  self.feat_stride_p7, self.anchor_scales_p7,self.anchor_ratios_p7, 
                                   self.allowed_border)
             new_label_list.append(label)
 
@@ -338,6 +349,7 @@ class AnchorLoader(mx.io.DataIter):
         for key in self.label_name:
             pad = -1 if key == 'label' else 0
             all_label[key] = tensor_vstack([batch[key] for batch in new_label_list], pad=pad)
+
 
         self.data = [mx.nd.array(all_data[key]) for key in self.data_name]
         self.label = [mx.nd.array(all_label[key]) for key in self.label_name]
@@ -360,6 +372,7 @@ class AnchorLoader(mx.io.DataIter):
             rst.append(self.parfetch(iroidb))
         all_data = [_['data'] for _ in rst]
         all_label = [_['label'] for _ in rst]
+        
         self.data = [[mx.nd.array(data[key]) for key in self.data_name] for data in all_data]
         self.label = [[mx.nd.array(label[key]) for key in self.label_name] for label in all_label]
 
@@ -368,8 +381,8 @@ class AnchorLoader(mx.io.DataIter):
         data, label = get_rpn_batch(iroidb, self.cfg)
         data_shape = {k: v.shape for k, v in data.items()}
         del data_shape['im_info']
-        _, feat_shape_p3, _ = self.feat_sym_p3.infer_shape(**data_shape)
-        feat_shape_p3 = [int(i) for i in feat_shape_p3[0]]
+
+
 
         _, feat_shape_p4, _ = self.feat_sym_p4.infer_shape(**data_shape)
         feat_shape_p4 = [int(i) for i in feat_shape_p4[0]]
@@ -379,14 +392,17 @@ class AnchorLoader(mx.io.DataIter):
         _, feat_shape_p6, _ = self.feat_sym_p6.infer_shape(**data_shape)
         feat_shape_p6 = [int(i) for i in feat_shape_p6[0]]
 
+        _, feat_shape_p7, _ = self.feat_sym_p7.infer_shape(**data_shape)
+        feat_shape_p7 = [int(i) for i in feat_shape_p7[0]]
+
         # add gt_boxes to data for e2e
         data['gt_boxes'] = label['gt_boxes'][np.newaxis, :, :]
         # assign anchor for label
-        label = assign_anchor(feat_shape_p3,feat_shape_p4,feat_shape_p5,feat_shape_p6, label['gt_boxes'], data['im_info'], self.cfg,
-                              self.feat_stride_p3, self.anchor_scales_p3,self.anchor_ratios_p3,        
+        label = assign_anchor(feat_shape_p4,feat_shape_p5,feat_shape_p6,feat_shape_p7, label['gt_boxes'], data['im_info'], self.cfg,     
                               self.feat_stride_p4, self.anchor_scales_p4,self.anchor_ratios_p4,
                               self.feat_stride_p5, self.anchor_scales_p5,self.anchor_ratios_p5,
                               self.feat_stride_p6, self.anchor_scales_p6,self.anchor_ratios_p6,  
+                               self.feat_stride_p7, self.anchor_scales_p7,self.anchor_ratios_p7,
                               self.allowed_border)
     
         return {'data': data, 'label': label}

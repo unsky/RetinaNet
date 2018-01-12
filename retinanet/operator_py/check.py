@@ -16,16 +16,16 @@ class CheckOperator(mx.operator.CustomOp):
 
    
     def forward(self, is_train, req, in_data, out_data, aux):
-        # print "--------------------------"
+        print "--------------------------"
 
-        # value = in_data[0].asnumpy()
-        # # print "forward:",np.sum(value)
+        value = in_data[0].asnumpy()
+        print "forward:",np.mean(value)
         self.assign(out_data[0],req[0],in_data[0])
     def backward(self, req, out_grad, in_data, out_data, in_grad, aux):
         value = out_grad[0].asnumpy()
-        # print 'backward:',np.sum(value)
-        # print "--------------------------"    
-        self.assign(in_grad[0], req[0], 0)
+        print 'backward:',np.mean(value)
+        print "--------------------------"    
+        self.assign(in_grad[0], req[0], out_grad[0])
 
  
          
