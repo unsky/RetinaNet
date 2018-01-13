@@ -132,7 +132,7 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch, lr, 
         sym_instance.init_weight(config, arg_params, aux_params)
 
     # check parameter shapes
-    # sym_instance.check_parameter_shapes(arg_params, aux_params, data_shape_dict)
+    sym_instance.check_parameter_shapes(arg_params, aux_params, data_shape_dict)
     # create solver
     fixed_param_prefix = config.network.FIXED_PARAMS
     data_names = [k[0] for k in train_data.provide_data_single]
@@ -174,21 +174,19 @@ def train_net(args, ctx, pretrained, epoch, prefix, begin_epoch, end_epoch, lr, 
     optimizer_params = {
                         'learning_rate': lr,
                         'wd':0.0001,
-                         'clip_gradient':0.001,
-                 
                         }
 
     if not isinstance(train_data, PrefetchingIter):
         train_data = PrefetchingIter(train_data)
     # train
-    initializer = mx.init.MSRAPrelu(factor_type='out',slope = 0.3)
- #   adam = mx.optimizer.Adam(learning_rate=0.001, beta1=0.9, beta2=0.999, epsilon=1e-14)
+    initializer = mx.init.MSRAPrelu(factor_type='out',slope = 0)
+   # adam = mx.optimizer.AdaDelta(rho=0.09,  epsilon=1e-14)
     #optimizer_params=optimizer_params, 
 
     print "-----------------------train--------------------------------"
     mod.fit(train_data, eval_metric=eval_metrics, epoch_end_callback=epoch_end_callback,
             batch_end_callback=batch_end_callback, kvstore=config.default.kvstore,
-            optimizer='adam',optimizer_params=optimizer_params,  initializer = initializer,
+            optimizer='sgd', optimizer_params=optimizer_params, initializer = initializer,
             arg_params=arg_params, aux_params=aux_params, begin_epoch=begin_epoch, num_epoch=end_epoch)
 
 

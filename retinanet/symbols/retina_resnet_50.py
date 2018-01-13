@@ -259,7 +259,7 @@ class retina_resnet_50(Symbol):
         else:
             rois, cls_score = mx.sym.Custom( bbox_p4 = bbox_pred_list[0],bbox_p5 = bbox_pred_list[1],bbox_p6 = bbox_pred_list[2],bbox_p7 = bbox_pred_list[3],
             cls_p4=cls_score_list[0],cls_p5=cls_score_list[1],cls_p6=cls_score_list[2],cls_p7=cls_score_list[3],im_info=im_info, im = data,
-            name='restored_rois',op_type='restore_rois',scales=cfg.network.p4_ANCHOR_SCALES,ratios= cfg.network.p4_ANCHOR_RATIOS,feat_stride =[16,32,64,128],num_classes=num_classes,keep_num = 1000 )
+            name='restored_rois',op_type='restore_rois',scales=cfg.network.p4_ANCHOR_SCALES,ratios= cfg.network.p4_ANCHOR_RATIOS,feat_stride =[16,32,64,128], num_clsses = num_classes,keep_num = 200 )
             group = mx.sym.Group([cls_score,rois,mx.sym.BlockGrad(im_info)])
         self.sym =group
         return group
@@ -268,3 +268,53 @@ class retina_resnet_50(Symbol):
             pi = 0.01
             arg_params['cls_score_bias'] = mx.nd.ones(shape=self.arg_shape_dict['cls_score_bias'])*(-np.log((1-pi)/pi))
 
+            arg_params['stage5_conv_1x1_weight'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['stage5_conv_1x1_weight'])
+            arg_params['stage5_conv_1x1_bias'] = mx.nd.zeros(shape=self.arg_shape_dict['stage5_conv_1x1_bias'])
+            arg_params['up_stage4_conv_1x1_weight'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['up_stage4_conv_1x1_weight'])
+            arg_params['up_stage4_conv_1x1_bias'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['up_stage4_conv_1x1_bias'])
+            arg_params['up_stage4_conv_3x3_weight'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['up_stage4_conv_3x3_weight'])
+            arg_params['up_stage4_conv_3x3_bias'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['up_stage4_conv_3x3_bias'])
+
+
+
+            arg_params['stage6_conv_3*3_weight'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['stage6_conv_3*3_weight'])
+            arg_params['stage6_conv_3*3_bias'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['stage6_conv_3*3_bias'])
+
+
+
+            arg_params['stage7_conv_3*3_weight'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['stage7_conv_3*3_weight'])
+            arg_params['stage7_conv_3*3_bias'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['stage7_conv_3*3_bias'])
+
+
+#cls
+            arg_params['cls_conv1_3x3_weight'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['cls_conv1_3x3_weight'])
+            arg_params['cls_conv1_3x3_bias'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['cls_conv1_3x3_bias'])
+
+            arg_params['cls_conv2_3x3_weight'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['cls_conv2_3x3_weight'])
+            arg_params['cls_conv2_3x3_bias'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['cls_conv2_3x3_bias'])
+        
+            arg_params['cls_conv3_3x3_weight'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['cls_conv3_3x3_weight'])
+            arg_params['cls_conv3_3x3_bias'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['cls_conv3_3x3_bias'])
+
+            arg_params['cls_conv4_3x3_weight'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['cls_conv4_3x3_weight'])
+            arg_params['cls_conv4_3x3_bias'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['cls_conv4_3x3_bias'])
+        
+            arg_params['cls_score_weight'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['cls_score_weight'])
+        #    arg_params['cls_score_bias'] = mx.random.normal(0, 0.001, shape=arg_shape_dict['cls_score_bias'])
+
+#box
+            arg_params['box_conv1_weight'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['box_conv1_weight'])
+            arg_params['box_conv1_bias'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['box_conv1_bias'])
+
+            arg_params['box_conv2_weight'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['box_conv2_weight'])
+            arg_params['box_conv2_bias'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['box_conv2_bias'])
+
+
+            arg_params['box_conv3_weight'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['box_conv3_weight'])
+            arg_params['box_conv3_bias'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['box_conv3_bias'])
+
+            arg_params['box_conv4_weight'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['box_conv4_weight'])
+            arg_params['box_conv4_bias'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['box_conv4_bias'])
+
+            arg_params['box_pred_weight'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['box_pred_weight'])
+            arg_params['box_pred_bias'] = mx.random.normal(0, 0.001, shape=self.arg_shape_dict['box_pred_bias'])

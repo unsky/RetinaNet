@@ -144,7 +144,7 @@ def im_detect(predictor, data_batch, data_names, scales, cfg):
     return scores_all, pred_boxes_all, data_dict_all
 
 
-def pred_eval(predictor, test_data, imdb, cfg, vis=False, thresh=0.0001, logger=None, ignore_cache=True):
+def pred_eval(predictor, test_data, imdb, cfg, vis=False, thresh=0.05, logger=None, ignore_cache=True):
     """
     wrapper for calculating offline validation for faster data analysis
     in this example, all threshold are set by hand

@@ -176,10 +176,10 @@ class RestoreRoisOperator(mx.operator.CustomOp):
 
         destore_rois = np.concatenate(destore_rois_list, axis=0)
         destore_cls = np.concatenate(destore_cls_list, axis=0)
+    
+    #    print destore_cls
         s = np.max(destore_cls,axis = 1)
-        print s
-
-
+  #      print s
     
         order = s.ravel().argsort()[::-1]
         order = order[:self._keep_num]
@@ -189,7 +189,6 @@ class RestoreRoisOperator(mx.operator.CustomOp):
         vis = False
         if vis:
             vis_all_detection(im, destore_rois[:,:])
-
     
         self.assign(out_data[0], req[0], mx.nd.array(destore_rois))
        

@@ -177,23 +177,23 @@ def assign_anchor(feat_shape_p4,feat_shape_p5,feat_shape_p6,feat_shape_p7,
         fpn_labels[:] = 0
 
   #  subsample positive labels if we have too many
-    num_fg = fpn_labels.shape[0] if cfg.TRAIN.RPN_BATCH_SIZE == -1 else int(cfg.TRAIN.RPN_FG_FRACTION * cfg.TRAIN.RPN_BATCH_SIZE)
-    fg_inds = np.where(fpn_labels >= 1)[0]
-    if len(fg_inds) > num_fg:
-        disable_inds = npr.choice(fg_inds, size=(len(fg_inds) - num_fg), replace=False)
-        fpn_labels[disable_inds] = -1
-  #  subsample negative labels if we have too many
-    num_bg = fpn_labels.shape[0] if cfg.TRAIN.RPN_BATCH_SIZE == -1 else cfg.TRAIN.RPN_BATCH_SIZE - np.sum(fpn_labels >= 1)
-    bg_inds = np.where(fpn_labels == 0)[0]
+#     num_fg = fpn_labels.shape[0] if cfg.TRAIN.RPN_BATCH_SIZE == -1 else int(cfg.TRAIN.RPN_FG_FRACTION * cfg.TRAIN.RPN_BATCH_SIZE)
+#     fg_inds = np.where(fpn_labels >= 1)[0]
+#     if len(fg_inds) > num_fg:
+#         disable_inds = npr.choice(fg_inds, size=(len(fg_inds) - num_fg), replace=False)
+#         fpn_labels[disable_inds] = -1
+#   #  subsample negative labels if we have too many
+#     num_bg = fpn_labels.shape[0] if cfg.TRAIN.RPN_BATCH_SIZE == -1 else cfg.TRAIN.RPN_BATCH_SIZE - np.sum(fpn_labels >= 1)
+#     bg_inds = np.where(fpn_labels == 0)[0]
     fpn_anchors_fid = np.hstack((0, fpn_anchors_fid.cumsum()))
-    if len(bg_inds) > num_bg:
-        disable_inds = npr.choice(bg_inds, size=(len(bg_inds) - num_bg), replace=False)
-        fpn_labels[disable_inds] = -1
+    # if len(bg_inds) > num_bg:
+    #     disable_inds = npr.choice(bg_inds, size=(len(bg_inds) - num_bg), replace=False)
+    #     fpn_labels[disable_inds] = -1
 
     fpn_bbox_targets = np.zeros((len(fpn_anchors), 4), dtype=np.float32)
     if gt_boxes.size > 0:
-        #fpn_bbox_targets[fpn_labels >= 1, :] = bbox_transform(fpn_anchors[fpn_labels >= 1, :], gt_boxes[argmax_overlaps[fpn_labels >= 1], :4])
-        fpn_bbox_targets[:] = bbox_transform(fpn_anchors, gt_boxes[argmax_overlaps, :4])
+         #fpn_bbox_targets[fpn_labels >= 1, :] = bbox_transform(fpn_anchors[fpn_labels >= 1, :], gt_boxes[argmax_overlaps[fpn_labels >= 1], :4])
+         fpn_bbox_targets[:] = bbox_transform(fpn_anchors, gt_boxes[argmax_overlaps, :4])
     # fpn_bbox_targets = (fpn_bbox_targets - np.array(cfg.TRAIN.BBOX_MEANS)) / np.array(cfg.TRAIN.BBOX_STDS)
     fpn_bbox_weights = np.zeros((len(fpn_anchors), 4), dtype=np.float32)
 
@@ -228,6 +228,7 @@ def assign_anchor(feat_shape_p4,feat_shape_p5,feat_shape_p6,feat_shape_p7,
     # print "--------bg--",len(debug_label[debug_label==0])
     # print "--------gg--",len(debug_label[debug_label>=1])
     # print np.concatenate(label_list, axis=1)[np.concatenate(label_list, axis=1)>=1].shape
+    #print np.concatenate(bbox_target_list, axis=2)
 
 
     label = {

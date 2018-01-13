@@ -23,23 +23,11 @@ class FocalLossOperator(mx.operator.CustomOp):
     def forward(self, is_train, req, in_data, out_data, aux):
         cls_score = in_data[0][:]
         pro_ =(mx.nd.sigmoid(cls_score)+self.eps).asnumpy()
-     #   print pro_
-  #      print pro_[0,:,0:3]
 
-        # print "-------------"
-        # print pro_[:,:,np.where(label>=1)[0][0:2]]
-        ### note!!!!!!!!!!!!!!!!
-        # focal loss value is not used in this place we should forward the cls_pro in this layer, 
-        # the focal vale should be calculated in metric.py
-        # the method is in readme
-        #  focal loss (batch_size,num_class)
-        #loss_ = -1 * np.power(1 - pro_, self._gamma) * np.log(pro_)
         self.assign(out_data[0],req[0],mx.nd.array(pro_))
     def backward(self, req, out_grad, in_data, out_data, in_grad, aux):
        
-        label = in_data[1].asnumpy()[:].astype('int')[:].flatten()[:]-1
-        # print 'label:'label
-        # print 'flatten',label.flatten()
+        label = in_data[1].asnumpy()[:].astype('int')[:].flatten()[:] - 1
         data = in_data[0][:]
         # focal loss onehot
     	label[label<0] = 0
@@ -51,20 +39,15 @@ class FocalLossOperator(mx.operator.CustomOp):
 
       
         labels_ = mx.nd.array(labels_)	
-     
-    
-        label_ig = in_data[1].asnumpy()[:].astype('int')[:].flatten()[:] - 1
-  #      print label_ig
-        aaa = np.where(label_ig>=0)[0]
-        ind_ig = np.where(label_ig<-1)[0]
-        nom = np.max((1,len(np.where(label_ig>=-1)[0])))
-    
+    	
 
-        # print'--', labels_[:,:,aaa[0:2]]
-      #  print '+++',mx.nd.sigmoid(data).asnumpy()[:,:,aaa[0:2]]
-        # labels_ = labels_[:,:,0:10]
-        # data = data[:,:,0:10]
-        # print labels_.shape,data.shape
+        label_ig = in_data[1].asnumpy()[:].astype('int')[:].flatten()[:] - 1
+
+      #  aaa = np.where(label_ig>=0)[0]
+        ind_ig = np.where(label_ig<-1)[0]
+        nom = np.max((1,len(np.where(label_ig>-1)[0])))
+        #print 'no,',nom
+
         data.attach_grad()
         with autograd.record():
             pro = mx.nd.sigmoid(data)
@@ -72,17 +55,13 @@ class FocalLossOperator(mx.operator.CustomOp):
         focal_loss.backward()
         grad = data.grad.asnumpy()
 
-# focal_loss =  mx.nd.sum( (-1 * self._alpha * labels_ * mx.nd.power(1 -  pro + self.eps, self._gamma) * mx.nd.log( pro+self.eps) - (1-labels_) * (1-self._alpha)*mx.nd.power(pro+self.eps, self._gamma) * mx.nd.log( 1-pro+self.eps)))/nom
 
-        grad[0,:,ind_ig] = 0
 
+        # grad[0,:,ind_ig] = 0
         # g = np.sum(grad.flatten()[grad.flatten()>0])
         # n = np.sum(grad>0)
         # print n,'cls: ',g/n
-
-
-
-
+      
    
         self.assign(in_grad[0], req[0], mx.nd.array(grad))
         self.assign(in_grad[1],req[1],0)

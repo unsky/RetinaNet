@@ -18,14 +18,10 @@ class SmoothL1LossOperator(mx.operator.CustomOp):
     def forward(self, is_train, req, in_data, out_data, aux):
       
         weight = in_data[0][:]
-     #   print np.sum(weight.asnumpy())/4
         pred = in_data[1][:]
         target = in_data[2][:]
         loss = weight * mx.nd.smooth_l1(data=(pred - target),scalar=3.0)
         
- #       print target.asnumpy().flatten()[target.asnumpy().flatten()>0]
-
-    
 
         self.assign(out_data[0],req[0],loss)
     def backward(self, req, out_grad, in_data, out_data, in_grad, aux):
@@ -33,11 +29,9 @@ class SmoothL1LossOperator(mx.operator.CustomOp):
         weight = in_data[0][:].asnumpy()
         pred = in_data[1][:]
         target = in_data[2][:]
-        index = np.sum(weight>0)
-   
-        length =  np.max((1,index))*9     
-    
-   
+        index = np.sum(weight>0)/4
+        length =  np.max((1,index))
+      #  print length
         weight = mx.nd.array(weight)
       
     	pred.attach_grad()
@@ -46,9 +40,8 @@ class SmoothL1LossOperator(mx.operator.CustomOp):
         loss.backward()
         grad = pred.grad.asnumpy()
         # g = np.sum(grad.flatten()[grad.flatten()>0])
-        # n = np.sum(grad>0)
+        # n = np.sum((1,np.sum(grad>0)))
         # print n,'bbox: ',g/n
-
       
 
     
